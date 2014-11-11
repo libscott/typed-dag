@@ -92,7 +92,7 @@ bind f s = case s of
     Pure    r -> f r
 
 
-addCont :: (Node (Cont a (Dag m) r) a m, Typeable a, Typeable r, Typeable m) => Cont a (Dag m) r -> Dag m (NodeId (Cont a (Dag m) r) a)
+addCont :: (Node (Cont a (Dag m) r) a m, Typeable a, Typeable r, Typeable m) => Cont a (Dag m) r -> Dag m (NodeId (Cont a (Dag m) r) a (m ()))
 addCont = addNode . Ready
 
 

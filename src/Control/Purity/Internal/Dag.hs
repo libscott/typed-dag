@@ -25,7 +25,7 @@ import           Data.Dynamic
 import           Data.IntMap.Strict as IntMap
 
 
-newtype NodeId n a = NodeId Int
+newtype NodeId n a m = NodeId Int
 
 
 type DagState = IntMap.IntMap Dynamic
@@ -51,7 +51,7 @@ runDag :: Monad m => Dag m a -> m a
 runDag (Dag m) = evalStateT m IntMap.empty
 
 
-addNode :: Node n a m => n -> Dag m (NodeId n a)
+addNode :: Node n a m => n -> Dag m (NodeId n a (m ()))
 addNode node = do
     map' <- get
     let i = IntMap.size map'
@@ -60,17 +60,17 @@ addNode node = do
     return $ NodeId i
 
 
-getNode :: Node n a m => NodeId n a -> Dag m n
+getNode :: Node n a m => NodeId n a (m ()) -> Dag m n
 getNode (NodeId nid) = do
     node <- fmap (!nid) get
     return $ fromDyn node (error "you have reached a secret level where the impossible is possible")
 
 
-putNode :: (Functor m, Monad m, Typeable n) => NodeId n a -> n -> Dag m ()
+putNode :: (Functor m, Monad m, Typeable n) => NodeId n a (m ()) -> n -> Dag m ()
 putNode (NodeId nid) node = modify $ IntMap.insert nid (toDyn node)
 
 
-send :: Node n a m => NodeId n a -> a -> Dag m ()
+send :: Node n a m => NodeId n a (m ()) -> a -> Dag m ()
 send nid v = do
     node <- getNode nid
     node' <- send' node v
