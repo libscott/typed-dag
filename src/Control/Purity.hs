@@ -35,4 +35,6 @@ fizzBuzz = do
     fizzbuzz <- addSimple (\n -> send_ fizz n >> send_ buzz n >> send_ printer "\n") :: Dag IO (NodeId (Cont Int (Dag IO) ()) Int (IO ()))
     mapM_ (send fizzbuzz) [1..100]
   where
-    addSimple f = addCont $ forever $ await >>= f
+    forever_ :: Monad m => m a -> m ()
+    forever_ = forever
+    addSimple f = addCont $ forever_ $ await >>= f
