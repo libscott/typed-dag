@@ -79,9 +79,10 @@ instance MonadState DagState m => MonadState DagState (Cont a m) where
 
 
 runCont :: Monad m => Cont t m t1 -> m (Cont t m t1)
-runCont (Ready p) = runCont p
-runCont (M m)     = m >>= runCont
-runCont c         = return c
+runCont cont = case cont of
+    Ready p -> runCont p
+    M m     -> m >>= runCont
+    c       -> return c
 
 
 bind :: Monad m => (r -> Cont a m r') -> Cont a m r -> Cont a m r'

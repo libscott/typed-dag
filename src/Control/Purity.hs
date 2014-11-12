@@ -18,7 +18,6 @@ import           Control.Purity.Internal.Dag
 
 
 
-type Printer = NodeId (Cont String (Dag IO) ()) String
 
 
 main :: IO ()
