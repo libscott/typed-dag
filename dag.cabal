@@ -1,0 +1,22 @@
+name:                Dag
+version:             0.0.1
+synopsis:            Directed Acyclic Graph control framework
+license:             BSD3
+license-file:        LICENSE
+author:              Scott Sadler
+maintainer:          Scott Sadler <ssadler@mashi.org>
+copyright:           Copyright (C) 2014 Scott Sadler
+homepage:            http://github.com/ssadler/dag/
+bug-reports:         http://github.com/ssadler/dag/issues
+category:            Control
+build-type:          Simple
+cabal-version:       >= 1.8
+
+
+library
+  exposed-modules:   Control.Dag
+  hs-source-dirs:    src
+  build-depends:     base                   >= 3 && < 5,
+                     containers             >= 0.1 && < 0.6,
+                     transformers           == 0.4.1.0,
+                     mtl                    == 2.2.1

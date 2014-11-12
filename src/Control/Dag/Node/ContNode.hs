@@ -8,10 +8,9 @@
   #-}
 
 
-module Control.Purity.Internal.Cont
-    ( addCont
-    , await,
-      Cont(..)
+module Control.Dag.Node.ContNode
+    ( await
+    , Cont (Ready)
     ) where
 
 import           Control.Applicative
@@ -21,7 +20,8 @@ import           Control.Monad.Trans
 import           Control.Monad.State.Strict
 import           Data.Dynamic
 
-import           Control.Purity.Internal.Dag
+import           Control.Dag.Node.StateNode
+import           Control.Dag.Types.Node
 
 
 data Cont a m r = Ready   (Cont a m r)
@@ -31,20 +31,23 @@ data Cont a m r = Ready   (Cont a m r)
     deriving (Typeable)
 
 
+instance (Functor m, Monad m, Typeable r, Typeable a, Typeable m) => TypeableNode (Cont a m r) a m
+
+
 instance Monad m => Monad (Cont a m) where
     return = Pure
     (>>=)  = flip bind
 
 
-instance (Functor m, Monad m, Typeable r, Typeable a, Typeable m, Show a) =>
-         Node (Cont a (Dag m) r) a m
+instance (Functor m, Monad m) =>
+         Node (Cont a m r) a m
   where
-    send' cont a = do
+    fold cont a = do
         cont' <- runCont cont
         case cont' of
             Waiting f -> runCont (f a)
             Pure b    -> return $ Pure b
-            c         -> error $ "Can't send: " ++ show c
+            _         -> error "can't happen because `runcont`"
 
 
 instance MonadTrans (Cont a) where
@@ -59,14 +62,6 @@ instance Monad m => Applicative (Cont a m) where
     pure    = return
     a <*> b = bind (`fmap` b) a
     (*>) = (>>)
-
-
-instance (Typeable a, Typeable m, Typeable r) => Show (Cont a m r) where
-    show a = case a of
-        Ready n   -> "Ready" ++ show n
-        Waiting _ -> "Waiting"
-        M _       -> "M"
-        Pure b    -> "Pure" ++ show (toDyn b)
 
 
 instance MonadIO m => MonadIO (Cont a m) where
@@ -91,10 +86,6 @@ bind f s = case s of
     Waiting p -> Waiting $ p >=> f
     M       p -> M       $ liftM (>>= f) p
     Pure    r -> f r
-
-
-addCont :: (Node (Cont a (Dag m) r) a m) => Cont a (Dag m) r -> Dag m (NodeId (Cont a (Dag m) r) a (m ()))
-addCont = addNode . Ready
 
 
 await :: Monad m => Cont a m a
