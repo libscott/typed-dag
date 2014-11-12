@@ -27,7 +27,7 @@ main = runDag fizzBuzz >>= print
 
 fizzBuzz :: Dag IO ()
 fizzBuzz = do
-    printer <- addSimple $ liftIO . putStr :: Dag IO (Printer (IO ()))
+    printer <- addSimple $ liftIO . putStr
     let send_ nid = lift . send nid
     let fizzybuzzy x s n = when (mod n x == 0) (send_ printer s)
     fizz <- addSimple $ fizzybuzzy 3 "Fizz"           :: Dag IO (NodeId (Cont Int (Dag IO) ()) Int (IO ()))
