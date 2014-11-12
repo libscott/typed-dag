@@ -30,11 +30,13 @@ fizzBuzz = do
     printer <- addSimple $ liftIO . putStr
     let send_ nid = lift . send nid
     let fizzybuzzy x s n = when (mod n x == 0) (send_ printer s)
-    fizz <- addSimple $ fizzybuzzy 3 "Fizz"           :: Dag IO (NodeId (Cont Int (Dag IO) ()) Int (IO ()))
-    buzz <- addSimple $ fizzybuzzy 5 "Buzz"           :: Dag IO (NodeId (Cont Int (Dag IO) ()) Int (IO ()))
-    fizzbuzz <- addSimple (\n -> send_ fizz n >> send_ buzz n >> send_ printer "\n") :: Dag IO (NodeId (Cont Int (Dag IO) ()) Int (IO ()))
-    mapM_ (send fizzbuzz) [1..100]
+    fizz <- addSimple $ fizzybuzzy 3 "Fizz"
+    buzz <- addSimple $ fizzybuzzy 5 "Buzz"
+    fizzbuzz <- addSimple (\n -> send_ fizz n >> send_ buzz n >> send_ printer "\n")
+    mapM_ (send fizzbuzz) nums
   where
     forever_ :: Monad m => m a -> m ()
     forever_ = forever
     addSimple f = addCont $ forever_ $ await >>= f
+    nums :: [Int]
+    nums = [1..100]
