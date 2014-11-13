@@ -1,0 +1,23 @@
+-- the way to do event driven StateNode is for a node to send to different outputs
+-- where outputs are event producers. The outputs (or output metadata) is sent
+-- back to the server, which commits it then waits for another event to process.
+-- There will never be a conflict as long as no 2 runners target the same output.
+-- So support for concurrency will come in the form of [dependency resolution?]
+-- some network locking mechanism.
+-- Use Raft and Control.Distributed.Backend.P2P for locking.
+
+-- If something fucked up, the branch of the runners can be changed.
+-- When the branch is changed, all runners backtrack to the common commit
+-- between their HEAD and the new branch, and go from there.
+-- Commit offset to disk on each iteration.
+
+
+-- Using GIT,
+
+-- and the server then
+
+-- this can be exposed to public for project management or something
+
+-- this can be done on the blockchain somehow
+
+-- state backend does storage and translation
