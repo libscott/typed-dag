@@ -1,16 +1,26 @@
-{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE InstanceSigs           #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 
 module Control.Dag.Types.Node
     ( Node(..)
     ) where
 
+
 import Control.Monad
 
 
-class (Functor m, Monad m) => Node n a m
+-- | Node Class.
+-- The fundep indicates that the type of the input depends
+-- on the type of the node. This is a massive win since then
+-- the compiler knows to flag an error in nodes that have
+-- ambiguous input types.
+
+class (Functor m, Monad m) => Node i n m | n -> i
   where
-      send :: Node n a m => n -> a -> m ()
-      send n a = void $ fold n a
-      fold :: Node n a m => n -> a -> m n
-      fold n a = send n a >> return n
+      send :: Node i n m => n -> i -> m ()
+      send output input = void $ fold output input
+      fold :: Node i n m => n -> i -> m n
+      fold node input = send node input >> return node

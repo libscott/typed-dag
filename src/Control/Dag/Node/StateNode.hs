@@ -7,75 +7,70 @@
 
 module Control.Dag.Node.StateNode
     ( DagState
+    , DagStateT
     , StateNode
-    , StateNodeT
-    , TypeableNode
+    , addStateNode
     , emptyDag
-    , addNode
-    , runStateNodeT
-    , execStateNodeT
-    , evalStateNodeT
+    , runNodeState
+    , execNodeState
+    , evalNodeState
     ) where
 
 
-import           Control.Monad.State
-import           Data.Dynamic
+import           Control.Monad.State.Strict
 import qualified Data.IntMap.Strict as IntMap
 
 import           Control.Dag.Types.Node
 
 
-type DagState = IntMap.IntMap Dynamic
+type DagState n = IntMap.IntMap n
 
 
-type StateNodeT = StateT DagState
+type DagStateT n = StateT (DagState n)
 
 
-newtype StateNode n a m = StateNode Int
+newtype StateNode i n = StateNode Int
 
 
-class (Typeable n, Typeable a, Typeable m, Node n a m) => TypeableNode n a m
-
-
-instance (MonadState DagState m, TypeableNode n a m) =>
-    Node (StateNode n a (t m)) a m
+instance ( Functor m
+         , MonadState (DagState n) m
+         , Node i n m
+         )
+        => Node i (StateNode i n) m
   where
-    send nid a = do
+    send nid input = do
         node <- getNode nid
-        node' <- fold node a
+        node' <- fold node input
         putNode nid node'
 
 
-emptyDag :: DagState
+emptyDag :: DagState n
 emptyDag = IntMap.empty
 
 
-addNode :: (MonadState DagState m, Typeable n) => n -> m (StateNode n a (t m))
-addNode node = do
+addStateNode :: (MonadState (DagState n) m, Node i n m) => n -> m (StateNode i n)
+addStateNode node = do
     map' <- get
     let i = IntMap.size map'
-    let dyn = toDyn node
-    put $ IntMap.insert i dyn map'
+    put $ IntMap.insert i node map'
     return $ StateNode i
 
 
-runStateNodeT :: StateNodeT m a -> DagState -> m (a, DagState)
-runStateNodeT = runStateT
+runNodeState :: DagStateT n m a -> DagState n -> m (a, DagState n)
+runNodeState = runStateT
 
 
-execStateNodeT :: Monad m => StateNodeT m a -> DagState -> m DagState
-execStateNodeT = execStateT
+execNodeState :: Monad m => DagStateT n m a -> DagState n -> m (DagState n)
+execNodeState = execStateT
 
 
-evalStateNodeT :: Monad m => StateNodeT m a -> DagState -> m a
-evalStateNodeT = evalStateT
+evalNodeState :: Monad m => DagStateT n m a -> DagState n -> m a
+evalNodeState = evalStateT
 
 
-getNode :: (MonadState DagState m, Node n a m, Typeable n) => StateNode n a (t m) -> m n
-getNode (StateNode nid) = do
-    node <- fmap (IntMap.! nid) get
-    return $ fromDyn node $ error "DagState mixup"
+getNode :: (MonadState (DagState n) m, Node i n m) => StateNode i n -> m n
+getNode (StateNode nid) = fmap (IntMap.! nid) get
 
 
-putNode :: (MonadState DagState m, TypeableNode n a m, Typeable n) => StateNode n a (t m) -> n -> m ()
-putNode (StateNode nid) node = modify . IntMap.insert nid $ toDyn node
+putNode :: (MonadState (DagState n) m) => StateNode i n -> n -> m ()
+putNode (StateNode nid) = modify . IntMap.insert nid
