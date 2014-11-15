@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FunctionalDependencies     #-}
@@ -11,62 +12,43 @@
 module Control.Dag.Evented where
 
 
-import           Control.Monad.Reader
+import           Control.Lens
 import           Control.Monad.State.Strict
+import           Data.Monoid
 
 import           Control.Dag.Types.Node
 
 
 
-class Emitter c i r s (m :: * -> *) | c -> i, c -> r
-  where
-    addSubscriber :: Constructor c i r (Subscribers s m) -> (r -> m ()) -> Subscribers s m -> Subscribers s m
-    getSubscribers :: Constructor c i r (Subscribers s m) -> Subscribers s m -> [r -> m ()]
-    wrap :: c -> i -> r
-
-
--- The reason for a second monad here is that we build the dag in StateT
--- and run it in ReaderT
-
-subscribe :: (Emitter c i r s m8, Monad m, Node r n m8, MonadState (Subscribers s m8) m)
-          => n -> Constructor c i r (Subscribers s m8) -> m ()
-subscribe node constructor = modify $ addSubscriber constructor (send node)
+-- | The reason for a second monad here is that we build the dag in StateT
+-- and run it in StateT
+subscribe :: (Monad m, Node i n m, MonadState (Subscribers s m) m)
+          => n -> Emitter i s m -> m ()
+subscribe node em = modify $ addSubscriber em $ send node
 
 
 
 
-instance ( Functor m
-         , Emitter c i r s m
-         , MonadReader (Subscribers s m) m
-         )
-        => Node i (Constructor c i r (Subscribers s m)) m
-  where
-    send th@(Constructor constructor) input = do
-        st <- ask
-        let subscribers = getSubscribers th st
-        -- forM_ subscribers $ \s -> s (constructor input)
-        mapM_ ($ constructor input) subscribers
+newtype Subscribers s (m :: * -> *) = Subscribers s deriving (Monoid)
 
 
-newtype Subscribers s (m :: * -> *) = Subscribers s
--- a wrapper for input to reference input type and state type
-newtype Constructor c i r s = Constructor (i -> r)
+data Emitter i s m = Emitter { addSubscriber :: (i -> m ()) -> Subscribers s m -> Subscribers s m
+                             , getSubscribers :: Subscribers s m -> [i -> m ()]
+                             }
 
 
-construct :: s -> (i -> r) -> Constructor c i r s
-construct _ = Constructor
+makeEmitter :: Subscribers s m -> ALens s s [i -> m ()] [i -> m ()] -> Emitter i s m
+makeEmitter _ lenz = Emitter
+    (\send' (Subscribers s) -> Subscribers (s & lenz #%~ (send':)))
+    (\(Subscribers s) -> s^# lenz)
 
 
-
-type Builder = StateT
-
-
-type Evented = ReaderT
+instance (Functor m, Monad m, MonadState (Subscribers s m) m) => Node i (Emitter i s m) m where
+    send (Emitter _ getSubs) input = get >>= mapM_ ($input) . getSubs
 
 
-buildEvented :: Monad m => s -> Builder s m () -> m s
-buildEvented = flip execStateT
+type Evented s m = StateT (Subscribers s m) m
 
 
-runEvented :: Monad m => s -> Evented s m a -> m a
-runEvented = flip runReaderT
+runEvented :: Monad m => Evented s m a -> Subscribers s m -> m (a, Subscribers s m)
+runEvented = runStateT
