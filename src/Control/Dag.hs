@@ -17,25 +17,31 @@ import           Control.Dag.Node.StateNode
 import           Control.Dag.Types.Node
 
 import           Control.Dag.Prelude
+import           Control.Dag.Evented
+import           Control.Dag.Test.Inputs
 
 
 import Data.Monoid
 
 
 
-data PrinterNode g = PrinterNode g
-instance (Functor m, Monad m, MonadIO m, Show i) => Node i (PrinterNode i) m where
+data PrinterNode s = PrinterNode
+
+
+instance (Functor m, MonadIO m, Show s) => Node s (PrinterNode s) m where
     send _ = liftIO . print
 
 
 
-input2 :: Many2 String ()
-input2 = mempty
+build :: IO (SubscriberMap (MySubscribers IO) (IO ()))
+build = buildEvented emptyMySubscribers $ do
+    subscribe PrinterNode MyInput
+    subscribe PrinterNode MyInput
+    subscribe PrinterNode MyInput
 
 
 
 demo :: IO ()
-demo = flip evalNodeState emptyDag $ do
-    combiner <- addStateNode $ JunctionNode input2 $ PrinterNode input2
-    send combiner $ OneOf2a "Hello"
-    send combiner $ OneOf2b ()
+demo = do
+    subs <- build
+    runEvented subs $ emit MyInput "hello world"
