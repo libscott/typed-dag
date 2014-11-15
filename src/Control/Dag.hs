@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -24,7 +25,6 @@ import           Control.Dag.Evented
 import           Control.Dag.Test.Inputs
 
 
-import           Data.Monoid
 
 
 
@@ -35,24 +35,15 @@ instance (Functor m, MonadIO m, Show s) => Node s (PrinterNode s) m where
     send _ = liftIO . print
 
 
-type MySubscribers (m :: * -> *) = [String -> m ()]
 
-
-dag :: (Functor m, MonadState (Subscribers (MySubscribers m) m) m, MonadIO m) => m ()
+dag :: StateT (MySubscribers IO) IO ()
 dag = do
-    s <- get
-    let emitMyInput = makeEmitter s id
-    subscribe PrinterNode emitMyInput
-    subscribe PrinterNode emitMyInput
+    emitMyInput <- makeEmitter strings
     subscribe PrinterNode emitMyInput
     send emitMyInput "hello world"
 
 
--- instance (Functor m, Monad m, MonadState (Subscribers s m) m) => Node i (Emitter i s m) m
-
-
-
 demo :: IO ()
 demo = do
-    runEvented dag mempty
+    _ <- runEvented dag $ MySubscribers []
     return ()

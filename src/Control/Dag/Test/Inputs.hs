@@ -1,13 +1,19 @@
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE ExistentialQuantification  #-}
-{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE FlexibleContexts           #-}
 
 
 module Control.Dag.Test.Inputs where
 
 
-import Data.Monoid
+import Control.Lens
+import Control.Monad.State.Strict
 
-import Control.Dag.Evented
+
+data MySubscribers m = MySubscribers
+    { _fStrings :: [String -> StateT (MySubscribers m) m ()]
+    }
+
+makeFields ''MySubscribers
