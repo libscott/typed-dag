@@ -2,28 +2,26 @@
 {-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE KindSignatures             #-}
 
 
 
 module Control.Dag.Test.Inputs where
 
-import Control.Dag.Types.Node
 import Control.Dag.Evented
-import Data.Monoid
 
 
 
 
-data MyInput i = MyInput String i
+data MyInput = MyInput String deriving (Show)
+
+type MySubscribers (m :: * -> *) = Subscribers [MyInput -> m ()] m
 
 
-type MySubscribers m = Subscribers [MyInput -> m ()]
 
-
-instance Emitter (i -> MyInput i) (MySubscribers m) m where
-    addSubscriber :: Constructor (i -> r) (Subscribers s m) -> (r -> m ()) -> Subscribers s m -> Subscribers s m
+instance Emitter (Constructor (String -> MyInput) String MyInput [MyInput -> m ()])
+                 String MyInput ([MyInput -> m ()]) m where
+    addSubscriber _ send' (Subscribers s) = Subscribers $ s ++ [send']
     -- getSubscribers :: Constructor (i -> r) (Subscribers s m) -> Subscribers s m -> [r -> m ()]
-
-
-
-m f a = a { f = f a }
+    getSubscribers _ (Subscribers s) = s
+    wrap (Constructor f) = f

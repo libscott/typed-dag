@@ -21,7 +21,7 @@ import           Control.Dag.Evented
 import           Control.Dag.Test.Inputs
 
 
-import Data.Monoid
+import           Data.Monoid
 
 
 
@@ -33,15 +33,19 @@ instance (Functor m, MonadIO m, Show s) => Node s (PrinterNode s) m where
 
 
 
-build :: IO (SubscriberMap (MySubscribers IO) (IO ()))
-build = buildEvented emptyMySubscribers $ do
-    subscribe PrinterNode MyInput
-    subscribe PrinterNode MyInput
-    subscribe PrinterNode MyInput
+
+
+build :: IO (MySubscribers IO)
+build = buildEvented s $ do
+    subscribe PrinterNode $ construct s MyInput
+    subscribe PrinterNode $ construct s MyInput
+    subscribe PrinterNode $ construct s MyInput
+  where
+    s = Subscribers []
 
 
 
 demo :: IO ()
 demo = do
     subs <- build
-    runEvented subs $ emit MyInput "hello world"
+    runEvented subs $ send (construct subs MyInput) "hello world"
