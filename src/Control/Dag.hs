@@ -1,10 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE KindSignatures             #-}
 
 
 module Control.Dag
@@ -12,38 +10,46 @@ module Control.Dag
     ) where
 
 
-import           Control.Lens
 import           Control.Monad.IO.Class
 import           Control.Monad.State.Strict
-
-import           Control.Dag.Node.JunctionNode
-import           Control.Dag.Node.StateNode
 import           Control.Dag.Types.Node
 
-import           Control.Dag.Prelude
-import           Control.Dag.Evented
+
+-- import           Control.Dag.Node.EmitterNode
+import           Control.Dag.Node.GitNode
+import           Control.Dag.Node.JobNode
 import           Control.Dag.Test.Inputs
+import           System.IO
+
+
+type Dag s m = StateT (s m) m
+
+
+-- data PrinterNode i = PrinterNode
+-- instance (Functor m, MonadIO m, Show i) => Node i (PrinterNode i) m where
+--     send _ = liftIO . print
+
+
+data MyJobNode = MyJobNode
+instance (Functor m, MonadIO m) => Node (JobArgs String) MyJobNode m where
+    send _ (JobArgs path myInputs complete) = liftIO $ do
+        print (path, myInputs)
+        withFile path AppendMode $ flip hPutStrLn "OK!"
+        complete path
+        return ()
 
 
 
 
 
-data PrinterNode s = PrinterNode
 
-
-instance (Functor m, MonadIO m, Show s) => Node s (PrinterNode s) m where
-    send _ = liftIO . print
-
-
-
-dag :: StateT (MySubscribers IO) IO ()
+dag :: Dag MySubscribers IO ()
 dag = do
-    emitMyInput <- makeEmitter strings
-    subscribe PrinterNode emitMyInput
-    send emitMyInput "hello world"
+    -- emitMyInput <- makeEmitter strings
+    let gitNode = GitNode "README" ["hello", "world"] MyJobNode
+    send gitNode Ping
+
 
 
 demo :: IO ()
-demo = do
-    _ <- runEvented dag $ MySubscribers []
-    return ()
+demo = withGit "repo" $ evalStateT dag $ MySubscribers []

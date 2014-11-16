@@ -1,0 +1,29 @@
+
+
+when there’s a new output all the nodes subscribing to this output must run. Nodes are called, given a full list of their inputs (complete or not) and are then able to publish to new outputs.
+
+application restart should be seamless. This means that the successful completion of a job cannot depend on any long held connection.
+
+There should be support for typed and dynamic outputs
+
+Changes to the dag result in a recompile of the application. The application itself may be generated using TemplateHaskell or another mechanism.
+
+If a node is triggered twice with the same inputs, it should be able to figure out that it doesn’t need to run.
+
+you can replay a branch from any given offset. If engines forget their offset it doesn’t matter.
+
+this means that output nodes can be aware of their subscribers and just call each of them in sequence. If there’s a problem, it’ll all re-run and pick up where it left off.
+
+binding to an output is a function call that type checks the caller and output, and adds the caller to a list of callbacks. No reason this can’t use Typeables.
+
+template haskell for generated input references which generates lenses for each of them and allows them to retrieve the lenses. for now just make the lenses and the container type.
+
+state-changes.log
+
+Nodes need to be able to lookup their outputs since otherwise you might need to replay from like the beginning to get other outputs (e.g and input that was provided only once).
+
+Everything is an output. (remember, graph > all other data structures). Everything is replayable in the same manner so different event types aren’t necessary, just different event properties.
+
+* wants the mathematical notation for “contains”?
+
+Private copy of GIT repository would be nice too. Check a file repeatedly for current branch name.
