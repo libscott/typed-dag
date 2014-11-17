@@ -30,6 +30,8 @@ data GitOutput o = GitOutput
 
 class (Functor m, MonadIO m) => HasGit m
 
+instance HasGit IO
+
 
 gitExists :: HasGit m => FilePath -> m Bool
 gitExists = liftIO . fileExist
@@ -49,7 +51,7 @@ gitHeader path = GitHeader path <$> gitSha1 path
 
 
 gitMessage :: HasGit m => FilePath -> m String
-gitMessage path = let args = ["log", "-n 1", "--pretty-format:%B", path]
+gitMessage path = let args = ["log", "-n 1", "--pretty=format:%B", path]
                   in liftIO $ gitExec args >>= hGetContents
 
 
@@ -61,7 +63,7 @@ gitReadOutput path = do
 
 
 gitSha1 :: (HasGit m) => FilePath -> m String
-gitSha1 path = let args = ["log", "-n 1", "--pretty-format:%H", path]
+gitSha1 path = let args = ["log", "-n 1", "--pretty=format:%H", path]
                in liftIO $ gitExec args >>= hGetLine
 
 

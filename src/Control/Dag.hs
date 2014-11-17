@@ -14,6 +14,7 @@ module Control.Dag
 import           Control.Applicative
 import           Control.Dag.Backends.GitCmd
 import           Control.Monad
+import           Control.Monad.Identity
 import           Data.List (sort)
 
 
@@ -22,46 +23,42 @@ exec :: N n o m -> m o
 exec (N n f) = f n
 
 
-dag :: (Applicative m, Functor m, Monad m) => N () String m
-dag = let n2in = N () (\_ -> return ("World", "Hello "))
-          n1left = N () (\_ -> fst <$> exec n2in)
-          n1right = N () (\_ -> snd <$> exec n2in)
-      in N () (\_ -> (++) <$> exec n1right <*> exec n1left)
+dag :: HasGit m => N String (GitOutput String) m
+dag = let branch = N "branch" $ git0            $ return ("World", "Hello ")
+          left   = N "left"   $ git1 branch     $ return . fst
+          right  = N "right"  $ git1 branch     $ return . snd
+      in           N "join"   $ git2 left right $ return . uncurry (++)
 
 
 demo :: IO ()
 demo = withGit "repo" $ exec dag >>= print
 
 
-unlessM :: Monad m => m Bool -> m () -> m ()
-unlessM mcond effect = mcond >>= flip unless effect
-
-
-git0 :: (HasGit m, Read o, Show o) => FilePath -> m () -> m (GitOutput o)
-git0 path job = do
+git0 :: (HasGit m, Read o, Show o) => m o -> FilePath -> m (GitOutput o)
+git0 job path = do
     gitCheckRunEffect path [] job
     gitReadOutput path
 
 
-git1 :: (HasGit m, Read o, Show o) => FilePath
-                                   -> N n (GitOutput a) m
+git1 :: (HasGit m, Read o, Show o) => N n (GitOutput a) m
                                    -> (a -> m o)
+                                   -> FilePath
                                    -> m (GitOutput o)
-git1 path input job = do
+git1 input job path = do
     (GitOutput depHead body) <- exec input
     gitCheckRunEffect path [depHead] (job body)
     gitReadOutput path
 
 
-git2 :: (HasGit m, Read o, Show o) => FilePath
-                                   -> N n (GitOutput a) m
+git2 :: (HasGit m, Read o, Show o) => N n (GitOutput a) m
                                    -> N n (GitOutput b) m
-                                   -> (a -> b -> m o)
+                                   -> ((a, b) -> m o)
+                                   -> FilePath
                                    -> m (GitOutput o)
-git2 path input1 input2 job = do
+git2 input1 input2 job path = do
     (GitOutput depHead1 body1) <- exec input1
     (GitOutput depHead2 body2) <- exec input2
-    gitCheckRunEffect path [depHead1, depHead2] (job body1 body2)
+    gitCheckRunEffect path [depHead1, depHead2] (job (body1, body2))
     gitReadOutput path
 
 
