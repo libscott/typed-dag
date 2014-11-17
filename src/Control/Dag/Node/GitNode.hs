@@ -18,8 +18,7 @@ import           System.Posix.Files
 import           System.Process
 
 
-import           Control.Dag.Node.JobNode
-import           Control.Dag.Types.Node
+import           Control.Dag.Types
 
 
 -- TODO: Please for the love of god use libgit2. MonadGitBackend etc.
@@ -28,10 +27,9 @@ import           Control.Dag.Types.Node
 data Ping = Ping deriving Show
 
 
-data GitNode i n = GitNode
-    { gPath_       :: FilePath
-    , gInputPaths_ :: [FilePath]
-    , gDownstream_ :: n
+data GitNode n o = GitNode
+    { gPath_        :: FilePath
+    , gJob_         :: n
     } deriving (Show)
 
 
@@ -41,8 +39,20 @@ data GitCommit = GitCommit
     } deriving (Show)
 
 
-instance (MonadIO m, Node (JobArgs i) n m) => Node Ping (GitNode i n) m where
-    send = ping
+instance (MonadIO m, PullNode n o m) => PullNode (GitNode n o) o m where
+    execute (GitNode path inputPaths jobNode) dependencies = do
+        execute dependencies
+
+
+
+        mMyCommit <- runMaybeT $ getInputCommit path
+        mInputCommits <- runMaybeT $ mapM getInputCommit inputPaths
+
+            let newMsg = show (map cSha1_ inputCommits) ++ "\n"
+                mChanged = fmap ((/=newMsg) . cMessage_) mMyCommit
+            return $ mChanged /= Just False
+        if dorun then
+
 
 
 -- | Notify a Git node that something may have changed

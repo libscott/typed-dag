@@ -5,8 +5,9 @@
 {-# LANGUAGE KindSignatures         #-}
 
 
-module Control.Dag.Types.Node
-    ( Node(..)
+module Control.Dag.Types
+    ( Node (..)
+    , PullNode (..)
     ) where
 
 
@@ -25,3 +26,12 @@ class (Functor m, Monad m) => Node i n (m :: * -> *) | n -> i
       send output input = void $ fold output input
       fold :: Node i n m => n -> i -> m n
       fold node input = send node input >> return node
+
+
+data Outputs a = Outputs a
+
+
+class (Functor m, Monad m) => PullNode n o (m :: * -> *)
+  where
+      execute :: n -> i -> m ()
+      pull :: n -> u -> Outputs o
