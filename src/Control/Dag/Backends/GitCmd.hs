@@ -39,7 +39,7 @@ gitExists = liftIO . fileExist
 
 gitCommit :: HasGit m => FilePath -> String -> String -> m ()
 gitCommit path msg body = liftIO $ do
-    system' "mkdir -p path"
+    system' $ "mkdir -p `dirname \"" ++ path ++ "\"`"
     writeFile path body
     _ <- gitExec ["add", path]
     _ <- gitExec ["commit", "-m", msg]
@@ -55,11 +55,11 @@ gitMessage path = let args = ["log", "-n 1", "--pretty=format:%B", path]
                   in liftIO $ gitExec args >>= hGetContents
 
 
-gitReadOutput :: (HasGit m, Read a) => FilePath -> m (GitOutput a)
+gitReadOutput :: (HasGit m, Read a) => FilePath -> m (GitHeader, a)
 gitReadOutput path = do
     contents <- liftIO $ readFile path
     header <- GitHeader path <$> gitSha1 path
-    return $ GitOutput header $! read contents
+    return $ (,) header $! read contents
 
 
 gitSha1 :: (HasGit m) => FilePath -> m String
@@ -69,7 +69,7 @@ gitSha1 path = let args = ["log", "-n 1", "--pretty=format:%H", path]
 
 gitExec :: [String] -> IO Handle
 gitExec args = do
-    let procArgs = (proc "git" args) { std_out = CreatePipe }
+    let procArgs = (proc "git" args) { std_out = CreatePipe, std_err = Inherit }
     (_, Just h, _, p) <- createProcess procArgs
     rc <- waitForProcess p
     return $ checkRc ("git":args) h rc
@@ -88,5 +88,6 @@ checkRc thing b rc = case rc of
 withGit :: FilePath -> IO a -> IO a
 withGit path effect = do
     wd <- getWorkingDirectory
+    system' $ "mkdir -p " ++ path
     changeWorkingDirectory path
     effect <* changeWorkingDirectory wd

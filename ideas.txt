@@ -8,8 +8,6 @@ There should be support for typed and dynamic outputs
 
 Changes to the dag result in a recompile of the application. The application itself may be generated using TemplateHaskell or another mechanism.
 
-If a node is triggered twice with the same inputs, it should be able to figure out that it doesn’t need to run.
-
 you can replay a branch from any given offset. If engines forget their offset it doesn’t matter.
 
 this means that output nodes can be aware of their subscribers and just call each of them in sequence. If there’s a problem, it’ll all re-run and pick up where it left off.
@@ -24,6 +22,11 @@ Nodes need to be able to lookup their outputs since otherwise you might need to 
 
 Everything is an output. (remember, graph > all other data structures). Everything is replayable in the same manner so different event types aren’t necessary, just different event properties.
 
-* wants the mathematical notation for “contains”?
+* whats the mathematical notation for “contains”?
 
 Private copy of GIT repository would be nice too. Check a file repeatedly for current branch name.
+
+
+* A "traversal" starts at any point in the dag and has a determinable end.
+
+* this traversal should have a session cache so that if the same node is hit twice then it needn't involve the fs.

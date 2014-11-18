@@ -1,74 +1,96 @@
 {-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE KindSignatures             #-}
 
 
 module Control.Dag
-    ( demo
+    ( module Control.Dag.Utils
+    , Algo (..)
+    , AlgoVersion (..)
+    , GitNode (..)
+    , HasGit
+    , codeHash
+    , execute
+    , gitNode0
+    , gitNode1
+    , gitNode2
+    , withGit
     ) where
 
 
-import           Control.Applicative
-import           Control.Dag.Backends.GitCmd
 import           Control.Monad
-import           Control.Monad.Identity
 import           Data.List (sort)
 
+import           Control.Dag.Backends.GitCmd
 
-data N n o (m :: * -> *) = N n (n -> m o)
-exec :: N n o m -> m o
-exec (N n f) = f n
-
-
-dag :: HasGit m => N String (GitOutput String) m
-dag = let branch = N "branch" $ git0            $ return ("World", "Hello ")
-          left   = N "left"   $ git1 branch     $ return . fst
-          right  = N "right"  $ git1 branch     $ return . snd
-      in           N "join"   $ git2 left right $ return . uncurry (++)
+import           Control.Dag.Algorithm
+import           Control.Dag.Utils
 
 
-demo :: IO ()
-demo = withGit "repo" $ exec dag >>= print
+execute :: GitNode m o -> m (GitHeader, o)
+execute = gRunner_
 
 
-git0 :: (HasGit m, Read o, Show o) => m o -> FilePath -> m (GitOutput o)
-git0 job path = do
-    gitCheckRunEffect path [] job
+data GitNode (m :: * -> *) o = GitNode
+    { gPath_      :: FilePath
+    , gInputs_    :: [FilePath]
+    , gRunner_    :: m (GitHeader, o)
+    }
+
+
+gitNode0 :: (HasGit m, Read o, Show o) => FilePath -> Algo (m o) -> GitNode m o
+gitNode0 path (Algo f v) = GitNode path [] $ do
+    let newMsg = gitCommitMessage path v []
+    gitCheckRunEffect path newMsg f
     gitReadOutput path
 
 
-git1 :: (HasGit m, Read o, Show o) => N n (GitOutput a) m
-                                   -> (a -> m o)
-                                   -> FilePath
-                                   -> m (GitOutput o)
-git1 input job path = do
-    (GitOutput depHead body) <- exec input
-    gitCheckRunEffect path [depHead] (job body)
+gitNode1 :: (HasGit m, Read o, Show o) => FilePath
+                                       -> GitNode m a
+                                       -> Algo (a -> m o)
+                                       -> GitNode m o
+gitNode1 path input (Algo f v) = GitNode path inputs $ do
+    (depHead, body) <- gRunner_ input
+    let newMsg = gitCommitMessage path v [depHead]
+    gitCheckRunEffect path newMsg (f body)
     gitReadOutput path
+  where
+    inputs = [gPath_ input]
 
 
-git2 :: (HasGit m, Read o, Show o) => N n (GitOutput a) m
-                                   -> N n (GitOutput b) m
-                                   -> ((a, b) -> m o)
-                                   -> FilePath
-                                   -> m (GitOutput o)
-git2 input1 input2 job path = do
-    (GitOutput depHead1 body1) <- exec input1
-    (GitOutput depHead2 body2) <- exec input2
-    gitCheckRunEffect path [depHead1, depHead2] (job (body1, body2))
+gitNode2 :: (HasGit m, Read o, Show o) => FilePath
+                                       -> GitNode m a
+                                       -> GitNode m b
+                                       -> Algo ((a, b) -> m o)
+                                       -> GitNode m o
+gitNode2 path input1 input2 (Algo f v) = GitNode path inputs $ do
+    (depHead1, body1) <- gRunner_ input1
+    (depHead2, body2) <- gRunner_ input2
+    let newMsg = gitCommitMessage path v [depHead1, depHead2]
+    gitCheckRunEffect path newMsg (f (body1, body2))
     gitReadOutput path
+  where
+    inputs = [gPath_ input1, gPath_ input2]
 
 
-gitCheckRunEffect :: (HasGit m, Show o) => FilePath -> [GitHeader] -> m o -> m ()
-gitCheckRunEffect path inputHeaders effect = do
-    let newMsg = sort inputHeaders -- kind of important
+gitCheckRunEffect :: (HasGit m, Show o) => FilePath -> String -> m o -> m ()
+gitCheckRunEffect path newMsg effect = do
+    info1 "%s called" path
     exists <- gitExists path
-    go <- if exists
-        then do oldMsg <- read <$> gitMessage path
-                return $ oldMsg /= newMsg
-        else return True
-    let commit = gitCommit path (show newMsg)
+    go <- if exists then compareMessage newMsg
+                    else do info1 "%s: creating" path
+                            return True
+    let commit = gitCommit path newMsg
     when go $ effect >>= commit . show
+  where
+    compareMessage new = do
+        old <- gitMessage path
+        return $ old /= (new ++ "\n")
+
+
+gitCommitMessage :: FilePath -> AlgoVersion -> [GitHeader] -> String
+gitCommitMessage path ver heads = show (path, ver, sort heads)
