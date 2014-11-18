@@ -1,4 +1,8 @@
-module Control.Dag.Algorithm where
+module Control.Dag.Algorithm
+    ( Algo (..)
+    , AlgoVersion (..)
+    , codeHash
+    ) where
 
 import Data.Hashable
 import Language.Haskell.TH

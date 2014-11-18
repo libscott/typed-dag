@@ -79,14 +79,23 @@ gitNode2 path input1 input2 (Algo f v) = GitNode path inputs $ do
 
 gitCheckRunEffect :: (HasGit m, Show o) => FilePath -> String -> m o -> m ()
 gitCheckRunEffect path newMsg effect = do
-    info1 "%s called" path
+    info1 "%s: Called" path
     exists <- gitExists path
-    go <- if exists then compareMessage newMsg
-                    else do info1 "%s: creating" path
+    go <- if exists
+        then do changed <- compareMessage newMsg
+                if changed
+                    then do info "Inputs changed"
                             return True
-    let commit = gitCommit path newMsg
-    when go $ effect >>= commit . show
+                    else do info "No change in inputs"
+                            return False
+        else do info "Creating"
+                return True
+    when go $ do
+        info "Running job"
+        effect >>= commit . show
   where
+    info s = info0 $ path ++ ": " ++ s
+    commit = gitCommit path newMsg
     compareMessage new = do
         old <- gitMessage path
         return $ old /= (new ++ "\n")

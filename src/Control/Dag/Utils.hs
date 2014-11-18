@@ -33,7 +33,7 @@ error0 = doLog ERROR
 
 setupLogging :: Priority -> IO ()
 setupLogging level = do
-    let f = simpleLogFormatter "$prio $time $loggername $msg"
+    let f = simpleLogFormatter "$msg"
     handler <- streamHandler stderr level
     let h = setFormatter handler f
     updateGlobalLogger rootLoggerName $

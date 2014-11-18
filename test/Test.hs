@@ -8,7 +8,7 @@ import           System.Environment
 
 
 dag :: HasGit m =>  GitNode m String
-dag = gitNode0 "a" $ [codeHash| return "Hello world" |]
+dag = gitNode0 "a" $ [codeHash| return "Hello world!!" |]
 
 
 main :: IO ()
