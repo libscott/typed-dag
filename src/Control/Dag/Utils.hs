@@ -10,7 +10,6 @@ import           System.Log.Logger
 import           Text.Printf
 
 
-
 -- | Clean and concatenate file paths
 fixPaths :: [FilePath] -> FilePath
 fixPaths [] = []
@@ -22,7 +21,7 @@ fixPaths (x : xs) = stripr x ++ concatMap clean xs
 
 
 doLog :: MonadIO m => Priority -> String -> m ()
-doLog priority' msg = liftIO $ logM "yea" priority' msg
+doLog priority' msg = liftIO $ logM "¡logtodo!" priority' msg
 
 
 info0 :: MonadIO m => String -> m ()
