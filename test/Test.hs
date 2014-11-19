@@ -28,7 +28,7 @@ top = [codeHash| return ("b", "a") |]
 
 
 dag :: HasGit m => (GitNode m String, GitNode m String)
-dag = split2 "left" "right" $ gitNode0 "top" top
+dag = gitNode0_2 "top" ("left", "right") $ gitNode0 "top" top
 
 
 main :: IO ()

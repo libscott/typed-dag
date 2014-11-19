@@ -24,6 +24,7 @@ module Control.Dag
     ) where
 
 
+import           Control.Applicative
 import           Control.Monad
 import           Control.Lens
 import           Data.List (sort)
@@ -44,78 +45,57 @@ data GitNode (m :: * -> *) o = GitNode
     }
 
 
-gitNode0 :: (HasGit m, Read o, Show o) => FilePath -> Algo (m o) -> (o -> m ()) -> GitNode m o
-gitNode0 path (Algo f v) commit = GitNode path [] $ do
-    let newMsg = gitCommitMessage path v []
-    gitCheckRunEffect path newMsg (f >>= commit)
-    gitReadOutput path
+run0in path (Algo f v) commit = let newMsg = gitCommitMessage path v []
+                                    effect = f >>= commit newMsg
+                                in gitCheckRunEffect path newMsg effect
 
 
-gitNode0_2 :: (HasGit m, Read a, Show a, Read b, Show b) => FilePath -> (FilePath, FilePath) -> Algo (m (a, b)) -> (GitNode m a, GitNode m b)
-gitNode0_2 path (suf1, suf2) (Algo f v) = split2 (suf1, suf2) $ GitNode path [] $ do
-    let newMsg = gitCommitMessage path v []
-    gitCheckRunEffect path newMsg (f >>= commit2 newMsg)
-    gitReadOutput path
+
+type Committer o m= String -> o -> m ()
+
+type Pair'O'Suffixes = (FilePath, FilePath)
+
+type Pair'O'GitNodes m a b = (GitNode m a, GitNode m b)
+
+
+run2in :: (HasGit m, Monad m, Read a, Read b, Show a, Show b)
+          => FilePath -> Pair'O'GitNodes m a b
+          -> Algo ((a, b) -> m o) -> Committer o m
+          -> m ()
+run2in path (input1, input2) (Algo f v) commit = do
+    (head1, body1) <- gRunner_ input1
+    (head2, body2) <- gRunner_ input2
+    let newMsg = gitCommitMessage path v [head1, head2]
+        effect = f (body1, body2) >>= commit newMsg
+    gitCheckRunEffect path newMsg effect
+
+
+run2out :: (HasGit m, Monad m, Read a, Read b, Show a, Show b)
+        => FilePath -> Pair'O'Suffixes
+        -> (Committer (a, b) m -> m ()) -> Pair'O'GitNodes m a b
+run2out basePath (suf1, suf2) run =
+    ( mkn path1 (run commit >> gitReadOutput path2)
+    , mkn path2 (run commit >> gitReadOutput path2)
+    )
   where
-    commit2 msg (a, b) = do gitCommit (fixPaths [path, suf1]) msg $ show a
-                            gitCommit (fixPaths [path, suf2]) msg $ show b
+    mkn p = GitNode p [error "input paths todo"]
+    (path1, path2) = (fixPaths [basePath, suf1], fixPaths [basePath, suf2])
+    commit msg (a, b) = let c p = gitCommit p msg . show
+                        in (c path1 a >> c path2 b)
 
 
-commit2 :: (HasGit m, Show a) => FilePath -> String -> a -> m ()
-commit2 path msg = gitCommit path msg . show
+in2out2 :: (HasGit m, Monad m, Read a, Read b, Read c, Read d, Show a, Show b, Show c, Show d)
+        => FilePath
+        -> Pair'O'Suffixes
+        -> Pair'O'GitNodes m a b
+        -> Algo ((a, b) -> m (c, d))
+        -> Pair'O'GitNodes m c d
+in2out2 path sufs inputs = run2out path sufs . run2in path inputs
 
 
-gitNode1 :: (HasGit m, Read o, Show o) => FilePath
-                                       -> GitNode m a
-                                       -> Algo (a -> m o)
-                                       -> GitNode m o
-gitNode1 path input (Algo f v) = GitNode path inputs $ do
-    (depHead, body) <- gRunner_ input
-    let newMsg = gitCommitMessage path v [depHead]
-    gitCheckRunEffect path newMsg (f body)
-    gitReadOutput path
-  where
-    inputs = [gPath_ input]
 
 
-gitNode2 :: (HasGit m, Read o, Show o) => FilePath
-                                       -> GitNode m a
-                                       -> GitNode m b
-                                       -> Algo ((a, b) -> m o)
-                                       -> GitNode m o
-gitNode2 path input1 input2 (Algo f v) = GitNode path inputs $ do
-    (depHead1, body1) <- gRunner_ input1
-    (depHead2, body2) <- gRunner_ input2
-    let newMsg = gitCommitMessage path v [depHead1, depHead2]
-    gitCheckRunEffect path newMsg (f (body1, body2))
-    gitReadOutput path
-  where
-    inputs = [gPath_ input1, gPath_ input2]
 
-
-split2 :: (HasGit m, Read a, Show b, Read b, Show a)
-       => (FilePath, FilePath) -> GitNode m (a, b) -> (GitNode m a, GitNode m b)
-split2 (suf1, suf2) node =
-        ( gitNode1 path1 node $ Algo (return . (^._1)) Unversioned
-        , gitNode1 path2 node $ Algo (return . (^._2)) Unversioned
-        )
-  where
-    joinPath suf = fixPaths [gPath_ node, suf]
-    (path1, path2) = (joinPath suf1, joinPath suf2)
-
-
-split3 :: (HasGit m, Read a, Show b, Read b, Show a, Read c, Show c)
-       => FilePath -> FilePath -> FilePath
-       -> GitNode m (a, b, c)
-       -> (GitNode m a, GitNode m b, GitNode m c)
-split3 suf1 suf2 suf3 node =
-        ( gitNode1 path1 node $ Algo (return . (^._1)) Unversioned
-        , gitNode1 path2 node $ Algo (return . (^._2)) Unversioned
-        , gitNode1 path3 node $ Algo (return . (^._3)) Unversioned
-        )
-  where
-    joinPath suf = fixPaths [gPath_ node, suf]
-    (path1, path2, path3) = (joinPath suf1, joinPath suf2, joinPath suf3)
 
 
 gitCheckRunEffect :: (HasGit m) => FilePath -> String -> m () -> m ()
