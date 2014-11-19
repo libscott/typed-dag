@@ -18,7 +18,6 @@ module Control.Dag
     , gitNode0
     , gitNode1
     , gitNode2
-    , split1
     , split2
     , split3
     , withGit
@@ -45,11 +44,25 @@ data GitNode (m :: * -> *) o = GitNode
     }
 
 
-gitNode0 :: (HasGit m, Read o, Show o) => FilePath -> Algo (m o) -> GitNode m o
-gitNode0 path (Algo f v) = GitNode path [] $ do
+gitNode0 :: (HasGit m, Read o, Show o) => FilePath -> Algo (m o) -> (o -> m ()) -> GitNode m o
+gitNode0 path (Algo f v) commit = GitNode path [] $ do
     let newMsg = gitCommitMessage path v []
-    gitCheckRunEffect path newMsg f
+    gitCheckRunEffect path newMsg (f >>= commit)
     gitReadOutput path
+
+
+gitNode0_2 :: (HasGit m, Read a, Show a, Read b, Show b) => FilePath -> (FilePath, FilePath) -> Algo (m (a, b)) -> (GitNode m a, GitNode m b)
+gitNode0_2 path (suf1, suf2) (Algo f v) = split2 (suf1, suf2) $ GitNode path [] $ do
+    let newMsg = gitCommitMessage path v []
+    gitCheckRunEffect path newMsg (f >>= commit2 newMsg)
+    gitReadOutput path
+  where
+    commit2 msg (a, b) = do gitCommit (fixPaths [path, suf1]) msg $ show a
+                            gitCommit (fixPaths [path, suf2]) msg $ show b
+
+
+commit2 :: (HasGit m, Show a) => FilePath -> String -> a -> m ()
+commit2 path msg = gitCommit path msg . show
 
 
 gitNode1 :: (HasGit m, Read o, Show o) => FilePath
@@ -80,12 +93,9 @@ gitNode2 path input1 input2 (Algo f v) = GitNode path inputs $ do
     inputs = [gPath_ input1, gPath_ input2]
 
 
-split1 :: GitNode m a -> GitNode m a
-split1 = id
-
-
-split2 :: (HasGit m, Read a, Show b, Read b, Show a) => FilePath -> FilePath -> GitNode m (a, b) -> (GitNode m a, GitNode m b)
-split2 suf1 suf2 node =
+split2 :: (HasGit m, Read a, Show b, Read b, Show a)
+       => (FilePath, FilePath) -> GitNode m (a, b) -> (GitNode m a, GitNode m b)
+split2 (suf1, suf2) node =
         ( gitNode1 path1 node $ Algo (return . (^._1)) Unversioned
         , gitNode1 path2 node $ Algo (return . (^._2)) Unversioned
         )
@@ -108,7 +118,7 @@ split3 suf1 suf2 suf3 node =
     (path1, path2, path3) = (joinPath suf1, joinPath suf2, joinPath suf3)
 
 
-gitCheckRunEffect :: (HasGit m, Show o) => FilePath -> String -> m o -> m ()
+gitCheckRunEffect :: (HasGit m) => FilePath -> String -> m () -> m ()
 gitCheckRunEffect path newMsg effect = do
     info "Called"
     exists <- gitExists path
@@ -123,19 +133,21 @@ gitCheckRunEffect path newMsg effect = do
                 return True
     when go $ do
         info "Running job"
-        effect >>= commit . show
-        executeEffect path newMsg effect
+        effect
   where
     info s = info0 $ path ++ ": " ++ s
-    commit = gitCommit path newMsg
     compareMessage new = do
         old <- gitMessage path
         return $ old /= (new ++ "\n")
 
 
+-- now need to change execution to write and commit outputs separately.
+-- but, shit, we don't know the type here at all.
+-- the answer is to pass the extraction function down the stack when assembling
+-- the GitNode object. So gitNodeN_N.
+
 executeEffect :: FilePath -> String -> m o -> m ()
 executeEffect path commitMessage effect = undefined
-
 
 
 gitCommitMessage :: FilePath -> AlgoVersion -> [GitHeader] -> String
