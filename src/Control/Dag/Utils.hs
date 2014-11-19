@@ -11,6 +11,16 @@ import           Text.Printf
 
 
 
+-- | Clean and concatenate file paths
+fixPaths :: [FilePath] -> FilePath
+fixPaths [] = []
+fixPaths (x : xs) = stripr x ++ concatMap clean xs
+    where
+      clean = ('/':) . stripr . stripl
+      stripr = reverse . stripl . reverse
+      stripl = dropWhile (=='/')
+
+
 doLog :: MonadIO m => Priority -> String -> m ()
 doLog priority' msg = liftIO $ logM "yea" priority' msg
 

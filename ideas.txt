@@ -30,3 +30,25 @@ Private copy of GIT repository would be nice too. Check a file repeatedly for cu
 * A "traversal" starts at any point in the dag and has a determinable end.
 
 * this traversal should have a session cache so that if the same node is hit twice then it needn't involve the fs.
+
+
+-- todo: sessions. a job is:
+-- create local branch
+-- create session commit. use that for the file outputs.
+-- run the session. commit outputs, referencing session commit.
+-- commit .done files for each of the outputs, with some new content.
+-- use the .done files to find the last run associated with an output.
+-- use the git object store as a cache.
+
+
+
+locking: Each process optimistically spawn a new thread whenever it has a new piece of work to do.
+         this thread will try to obtain a lock (netsem) before running. Netsem should be more
+         robust though.
+
+
+-- use python git library to figure out how to traverse trees and shit.
+
+!! optimistic runs can work off the parent's branch! That way, a node can
+-- advise of an output before all outputs are generated. the subscribers can run
+-- and all the changes can be merged back when they're done.

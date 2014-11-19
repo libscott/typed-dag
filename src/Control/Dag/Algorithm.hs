@@ -11,7 +11,7 @@ import Text.Printf
 import Language.Haskell.Meta.Parse (parseExp)
 
 
-data AlgoVersion = CodeHash Int
+data AlgoVersion = Unversioned | CodeHash Int
     deriving (Show, Eq)
 
 

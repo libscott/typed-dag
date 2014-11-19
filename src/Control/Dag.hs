@@ -18,16 +18,19 @@ module Control.Dag
     , gitNode0
     , gitNode1
     , gitNode2
+    , split1
+    , split2
+    , split3
     , withGit
     ) where
 
 
 import           Control.Monad
+import           Control.Lens
 import           Data.List (sort)
 
-import           Control.Dag.Backends.GitCmd
-
 import           Control.Dag.Algorithm
+import           Control.Dag.Backends.GitCmd
 import           Control.Dag.Utils
 
 
@@ -36,9 +39,9 @@ execute = gRunner_
 
 
 data GitNode (m :: * -> *) o = GitNode
-    { gPath_      :: FilePath
-    , gInputs_    :: [FilePath]
-    , gRunner_    :: m (GitHeader, o)
+    { gPath_   :: FilePath
+    , gInputs_ :: [FilePath]
+    , gRunner_ :: m (GitHeader, o)
     }
 
 
@@ -77,9 +80,37 @@ gitNode2 path input1 input2 (Algo f v) = GitNode path inputs $ do
     inputs = [gPath_ input1, gPath_ input2]
 
 
+split1 :: GitNode m a -> GitNode m a
+split1 = id
+
+
+split2 :: (HasGit m, Read a, Show b, Read b, Show a) => FilePath -> FilePath -> GitNode m (a, b) -> (GitNode m a, GitNode m b)
+split2 suf1 suf2 node =
+        ( gitNode1 path1 node $ Algo (return . (^._1)) Unversioned
+        , gitNode1 path2 node $ Algo (return . (^._2)) Unversioned
+        )
+  where
+    joinPath suf = fixPaths [gPath_ node, suf]
+    (path1, path2) = (joinPath suf1, joinPath suf2)
+
+
+split3 :: (HasGit m, Read a, Show b, Read b, Show a, Read c, Show c)
+       => FilePath -> FilePath -> FilePath
+       -> GitNode m (a, b, c)
+       -> (GitNode m a, GitNode m b, GitNode m c)
+split3 suf1 suf2 suf3 node =
+        ( gitNode1 path1 node $ Algo (return . (^._1)) Unversioned
+        , gitNode1 path2 node $ Algo (return . (^._2)) Unversioned
+        , gitNode1 path3 node $ Algo (return . (^._3)) Unversioned
+        )
+  where
+    joinPath suf = fixPaths [gPath_ node, suf]
+    (path1, path2, path3) = (joinPath suf1, joinPath suf2, joinPath suf3)
+
+
 gitCheckRunEffect :: (HasGit m, Show o) => FilePath -> String -> m o -> m ()
 gitCheckRunEffect path newMsg effect = do
-    info1 "%s: Called" path
+    info "Called"
     exists <- gitExists path
     go <- if exists
         then do changed <- compareMessage newMsg
@@ -93,12 +124,18 @@ gitCheckRunEffect path newMsg effect = do
     when go $ do
         info "Running job"
         effect >>= commit . show
+        executeEffect path newMsg effect
   where
     info s = info0 $ path ++ ": " ++ s
     commit = gitCommit path newMsg
     compareMessage new = do
         old <- gitMessage path
         return $ old /= (new ++ "\n")
+
+
+executeEffect :: FilePath -> String -> m o -> m ()
+executeEffect path commitMessage effect = undefined
+
 
 
 gitCommitMessage :: FilePath -> AlgoVersion -> [GitHeader] -> String
