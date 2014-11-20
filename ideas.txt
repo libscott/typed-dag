@@ -52,3 +52,9 @@ locking: Each process optimistically spawn a new thread whenever it has a new pi
 !! optimistic runs can work off the parent's branch! That way, a node can
 -- advise of an output before all outputs are generated. the subscribers can run
 -- and all the changes can be merged back when they're done.
+
+
+
+-- Really, we should be using the algorithm hash to version the outputs.
+-- Maybe use a precompilation step to hash the algorithms and generate a
+-- .hs file containing a bunch of atoms

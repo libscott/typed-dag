@@ -1,5 +1,5 @@
 module Control.Dag.Algorithm
-    ( Algo (..)
+    ( Algorithm (..)
     , AlgoVersion (..)
     , codeHash
     ) where
@@ -15,7 +15,7 @@ data AlgoVersion = Unversioned | CodeHash Int
     deriving (Show, Eq)
 
 
-data Algo f = Algo f AlgoVersion
+data Algorithm f = Algorithm f AlgoVersion
 
 
 embed :: String -> Q Exp
