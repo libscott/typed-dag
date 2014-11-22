@@ -7,88 +7,73 @@
 
 module Control.Dag.Backends.GitCmd where
 
-import           Control.Applicative
-import           Control.Monad.IO.Class
-import           System.Exit
+
+import qualified Data.Conduit.List as CL
 import           System.IO
 import           System.Posix.Directory
 import           System.Posix.Files
 import           System.Process
 
+import           Control.Dag.Prelude
+import           Control.Dag.Types
+import           Control.Dag.Utils
 
 
-data GitHeader = GitHeader
-    { oPath_ :: FilePath
-    , oSha1_ :: String
-    } deriving (Eq, Ord, Read, Show)
-
-
-data GitOutput o = GitOutput
-    { oHeader_ :: GitHeader
-    , oBody_   :: o
-    } deriving (Show)
-
-
-class (Functor m, MonadIO m) => HasGit m
-
-instance HasGit IO
-
-
-gitExists :: HasGit m => FilePath -> m Bool
+gitExists :: App m => FilePath -> m Bool
 gitExists = liftIO . fileExist
 
 
-gitCommit :: HasGit m => FilePath -> String -> String -> m ()
-gitCommit path msg body = liftIO $ do
-    system' $ "mkdir -p `dirname \"" ++ path ++ "\"`"
-    writeFile path body
-    _ <- gitExec ["add", path]
-    _ <- gitExec ["commit", "-m", msg]
-    return ()
+gitCommit :: App m => FilePath -> String -> m ()
+gitCommit path msg = gitExec ["add", path]
+                  >> gitExec ["commit", "-m", msg]
+                  >> return ()
 
 
-gitHeader :: HasGit m => FilePath -> m GitHeader
-gitHeader path = GitHeader path <$> gitSha1 path
+gitHeader :: App m => FilePath -> m InputHeader
+gitHeader path = InputHeader path <$> gitSha1 path
 
 
-gitMessage :: HasGit m => FilePath -> m String
-gitMessage path = let args = ["log", "-n 1", "--pretty=format:%B", path]
-                  in liftIO $ gitExec args >>= hGetContents
+gitMessage :: App m => String -> m String
+gitMessage key = let args = ["log", "-n 1", "--pretty=format:%B", key]
+                 in gitExec args >>= liftIO . hGetContents
 
 
-gitReadOutput :: (HasGit m, Read a) => FilePath -> m (GitHeader, a)
+gitReadOutput :: (App m, Read a) => FilePath -> m (InputHeader, Source m a)
 gitReadOutput path = do
-    contents <- liftIO $ readFile path
-    header <- GitHeader path <$> gitSha1 path
-    return $ (,) header $! read contents
+    header <- InputHeader path <$> gitSha1 path
+    return (header, sourceFile path $= CL.map (read . unpack))
 
 
-gitSha1 :: (HasGit m) => FilePath -> m String
-gitSha1 path = let args = ["log", "-n 1", "--pretty=format:%H", path]
-               in liftIO $ gitExec args >>= hGetLine
+gitSha1 :: App m => FilePath -> m GitCommitId
+gitSha1 path = let args = ["log", "-n 1", "--pretty=format:%H", path] in
+    GitCommitId <$> (gitExec args >>= liftIO . hGetLine)
 
 
-gitExec :: [String] -> IO Handle
-gitExec args = do
+gitRevList :: App m => String -> m [GitCommitId]
+gitRevList expr = let args = ["rev-list", expr] in
+    map GitCommitId . lines <$> (gitExec args >>= liftIO . hGetContents)
+
+
+gitFilesAffected :: App m => GitCommitId -> m [FilePath]
+gitFilesAffected (GitCommitId sha) = do
+    let getFiles = gitExec ["log", "--name-status", "--oneline", sha]
+    files <- lines <$> (getFiles >>= liftIO . hGetContents)
+    dropLen <- length <$> view pathPrefix_
+    return $ over each (drop dropLen) files
+
+
+gitExec :: App m => [String] -> m Handle
+gitExec args = liftIO $ do
+    liftIO $ print args
     let procArgs = (proc "git" args) { std_out = CreatePipe, std_err = Inherit }
     (_, Just h, _, p) <- createProcess procArgs
     rc <- waitForProcess p
     return $ checkRc ("git":args) h rc
 
 
-system' :: String -> IO ()
-system' cmd = checkRc cmd () <$> system cmd
-
-
-checkRc :: Show a => a -> b -> ExitCode -> b
-checkRc thing b rc = case rc of
-    ExitFailure c -> error $ show thing ++ " `exited with` " ++ show c
-    ExitSuccess -> b
-
-
-withGit :: FilePath -> IO a -> IO a
+withGit :: (Applicative m, MonadIO m) => FilePath -> m a -> m a
 withGit path effect = do
-    wd <- getWorkingDirectory
-    system' $ "mkdir -p " ++ path
-    changeWorkingDirectory path
-    effect <* changeWorkingDirectory wd
+    wd <- liftIO $ getWorkingDirectory
+                 <* changeWorkingDirectory path
+                 <* system' "[[ -d .git ]]" -- check we're at GIT directory base dir
+    effect <* liftIO (changeWorkingDirectory wd)

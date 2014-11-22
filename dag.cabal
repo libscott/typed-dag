@@ -25,11 +25,14 @@ library
                      many                   == 0.1.0.2,
                      unix                   == 2.7.0.1,
                      process                == 1.2.0.0,
-                     -- gitlib                 == 3.1.0,
-                     -- gitlib-libgit2         == 3.1.0,
                      process                == 1.2.0.0,
                      -- aeson                  == 0.8.0.2,
-                     -- bytestring             == 0.10.4.0,
                      hslogger               == 1.2.6,
                      template-haskell       == 2.9.0.0,
-                     haskell-src-meta       == 0.6.0.8
+                     haskell-src-meta       == 0.6.0.8,
+                     conduit                == 1.2.3,
+                     conduit-extra          == 1.1.4.2,
+                     bytestring             == 0.10.4.0,
+                     cryptohash             == 0.11.6,
+                     cryptohash-conduit     == 0.1.1,
+                     resourcet              == 1.1.2.3
