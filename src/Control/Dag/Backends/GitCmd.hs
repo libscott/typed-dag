@@ -8,7 +8,6 @@
 module Control.Dag.Backends.GitCmd where
 
 
-import qualified Data.Conduit.List as CL
 import           System.IO
 import           System.Posix.Directory
 import           System.Posix.Files
@@ -23,10 +22,10 @@ gitExists :: App m => FilePath -> m Bool
 gitExists = liftIO . fileExist
 
 
-gitCommit :: App m => FilePath -> String -> m ()
-gitCommit path msg = gitExec ["add", path]
-                  >> gitExec ["commit", "-m", msg]
-                  >> return ()
+gitCommit :: App m => String -> [FilePath] -> m ()
+gitCommit msg paths = mapM_ (\path -> gitExec ["add", path]) paths
+                   >> gitExec ["commit", "-m", msg]
+                   >> return ()
 
 
 gitHeader :: App m => FilePath -> m InputHeader
@@ -38,10 +37,8 @@ gitMessage key = let args = ["log", "-n 1", "--pretty=format:%B", key]
                  in gitExec args >>= liftIO . hGetContents
 
 
-gitReadOutput :: (App m, Read a) => FilePath -> m (InputHeader, Source m a)
-gitReadOutput path = do
-    header <- InputHeader path <$> gitSha1 path
-    return (header, sourceFile path $= CL.map (read . unpack))
+gitInputHeader :: App m => FilePath -> m InputHeader
+gitInputHeader path = InputHeader path <$> gitSha1 path
 
 
 gitSha1 :: App m => FilePath -> m GitCommitId

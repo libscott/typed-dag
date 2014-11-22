@@ -1,240 +1,178 @@
-{-# LANGUAGE ExistentialQuantification  #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-
-
--- deals with stiching together all the types in the graph.
-
-
--- this module badly requires further abstraction:
---   input collectors (run parent?, get output)
---   job runner
---   output committers (already know path and message)
---
---   don't use GitNode, use another. Maybe go back and fetch an old Node class
---   for a simple push dag. Cont could be fun here.
-
-
--- Let this grow for a while? It's clear there is alot of logic in here and we leave the complexity
--- bottleneck be for a while to get an idea how to refactor it.
-
-
 module Control.Dag.Build where
 
 import           Control.Applicative
-import           Control.Monad
 import           Control.Lens
 import qualified Data.Conduit.List as CL
 
 import           Control.Dag.Algorithm
-import           Control.Dag.Backends.GitCmd
 import           Control.Dag.Commit
 import           Control.Dag.Prelude
+import           Control.Dag.Runners
 import           Control.Dag.Types
 import           Control.Dag.Utils
-
-
--- the correct place to deal with reading the inputs is in the algorithm.
--- so if the inputs are a trio of conduits, the algorithm will have to deal
--- with reading and parsing them. It would however be nice if we could
--- stream everything as Many's. So we can. The problem is that Many is not
--- an *exclusive* container as it should be. So get rid of ManyOf,
--- and create a terminator function.
 
 
 execute :: GitNode m o -> m (InputHeader, Source m o)
 execute = gRunner_
 
 
--- | Remove type information from this node. It then serves as a
-terminate :: Monad m => GitNode m a -> GitNode m ()
-terminate n = n { gRunner_ = liftM (set _2 ()) (gRunner_ n) }
+-- | todo: moar lenses no?
+terminate :: App m => GitNode m a -> GitNode m ()
+terminate n = n { gRunner_ = set _2 (return ()) <$> gRunner_ n }
 
 
 type Suffix             = FilePath
 type Suffix2            = (FilePath, FilePath)
 type Suffix3            = (FilePath, FilePath, FilePath)
-type GitNode2 m a b     = (GitNode m a, GitNode m b)
-type GitNode3 m a b c   = (GitNode m a, GitNode m b, GitNode m c)
-type Source2 m a b      = (Source m a, Source m b)
-type Source3 m a b c    = (Source m a, Source m b, Source m c)
-type Committer o m      = InputVersions -> o -> m () -- committers are sinks, therefore output must be piped into them
-type Runner m o         = Committer o m -> m ()      -- multiple outputs must be piped into multiple committers.
-type ClosedInputs m     = [GitNode m ()]             -- for this reason, the commit callback is a function that yields multiple committers and and not a pipe.
+type ClosedInputs m     = [GitNode m ()]
 
 
-run0in :: (App m, Monad m, Read o, Show o)
-          => FilePath
-          -> Algorithm (Source m o) m
-          -> (ClosedInputs m , Runner m o)
-run0in path (Algorithm pipe getAlgoVer) = (,) [] $ \commit -> do
-    algoVer <- getAlgoVer
-    let newVers = InputVersions algoVer []
-        effect = commit newVers pipe
-    gitCheckRunEffect path newVers effect
+---------------------------------------------------------
+-- | Input closers close over the types of their inputs
+---------------------------------------------------------
+
+close0 :: App m
+       => FilePath
+       -> Algorithm (() -> m o) m
+       -> (ClosedInputs m, Runner m o)
+close0 path algo =
+    let transpose = return ([], ())
+    in ([], runner path transpose algo)
 
 
--- closers return the same input nodes but with their runners swapped for errors.
-
-
-run1in :: (App m, Monad m, Read a, Read o, Show a, Show o)
+close1 :: (App m, Read a, Show a)
        => FilePath
        -> GitNode m a
        -> Algorithm (Source m a -> m o) m
-       -> (ClosedInputs m , Runner m o)
-run1in path input (Algorithm f getAlgoVer) = ([terminate input], runner)
-  where
-    runner commit = do
-        algoVer <- getAlgoVer
-        (head', pipe) <- gRunner_ input
-        let newVers = InputVersions algoVer [head']
-            effect = f pipe >>= commit newVers
-        gitCheckRunEffect path newVers effect
+       -> (ClosedInputs m, Runner m o)
+close1 path i1 algo =
+    let transpose = (_1 %~ (:[])) <$> gRunner_ i1
+    in ([terminate i1], runner path transpose algo)
 
 
-run2in :: (App m, Monad m, Read a, Read b, Show a, Show b)
+close2 :: (App m, Read a, Read b, Show a, Show b)
           => FilePath
           -> GitNode2 m a b
           -> Algorithm (Source2 m a b -> m o) m
-          -> (ClosedInputs m , Runner m o)
-run2in path (input1, input2) (Algorithm f getAlgoVer) = (inputs, runner)
-  where
-    runner commit = do
-        algoVer <- getAlgoVer
-        (head1, pipe1) <- gRunner_ input1
-        (head2, pipe2) <- gRunner_ input2
-        let newVers = InputVersions algoVer [head1, head2]
-            effect = f (pipe1, pipe2) >>= commit newVers
-        gitCheckRunEffect path newVers effect
-    inputs = [terminate input1, terminate input2]
+          -> (ClosedInputs m, Runner m o)
+close2 path (i1, i2) algo =
+    let transpose = do
+        (head1, pipe1) <- gRunner_ i1
+        (head2, pipe2) <- gRunner_ i2
+        return ([head1, head2], (pipe1, pipe2))
+    in ([terminate i1, terminate i2], runner path transpose algo)
 
 
-run3in :: (App m, Monad m, Read a, Read b, Read c, Show a, Show b, Show c)
-          => FilePath
-          -> GitNode3 m a b c
-          -> Algorithm (Source3 m a b c -> m o) m
-          -> (ClosedInputs m , Runner m o)
-run3in path (input1, input2, input3) (Algorithm f getAlgoVer) = (inputs, runner)
-  where
-    runner commit = do
-        algoVer <- getAlgoVer
-        (head1, pipe1) <- gRunner_ input1
-        (head2, pipe2) <- gRunner_ input2
-        (head3, pipe3) <- gRunner_ input3
-        let newVers = InputVersions algoVer [head1, head2, head3]
-            effect = f (pipe1, pipe2, pipe3) >>= commit newVers
-        gitCheckRunEffect path newVers effect
-    inputs = [terminate input1, terminate input2, terminate input3]
+close3 :: (App m, Read a, Read b, Read c, Show a, Show b, Show c)
+       => FilePath
+       -> GitNode3 m a b c
+       -> Algorithm (Source3 m a b c -> m o) m
+       -> (ClosedInputs m, Runner m o)
+close3 path (i1, i2, i3) algo =
+    let transpose = do
+        (head1, pipe1) <- gRunner_ i1
+        (head2, pipe2) <- gRunner_ i2
+        (head3, pipe3) <- gRunner_ i3
+        return ([head1, head2, head3], (pipe1, pipe2, pipe3))
+    in ( [terminate i1, terminate i2, terminate i3]
+       , runner path transpose algo
+       )
 
 
-run1out :: (App m, Monad m, Read a, Show a)
+---------------------------------------------------------
+-- | Node builders take closed inputs and return a node.
+--   It is also the job of the node builder to provide
+--   the commit function since it knows the output types.
+---------------------------------------------------------
+
+
+node1 :: (App m, Read a, Show a)
         => FilePath
         -> Suffix
-        -> (ClosedInputs m , Runner m (Source m a))
+        -> (ClosedInputs m, Runner m (Source m a))
         -> GitNode m a
-run1out basePath suf (inputs, run) = GitNode path inputs effect
+node1 basePath suf (inputs, run) =
+    GitNode path inputs $ run commit >> sourceOutput path
   where
     path = fixPaths [basePath, suf]
     commit inputVers pipe = pipe $$ showCommitSink path inputVers
-    effect = run commit >> gitReadOutput path
 
 
-run2out :: (App m, Monad m, Read a, Read b, Show a, Show b)
+node2 :: (App m, Read a, Read b, Show a, Show b)
         => FilePath
         -> Suffix2
-        -> (ClosedInputs m , Runner m (Source2 m a b))
+        -> (ClosedInputs m, Runner m (Source2 m a b))
         -> GitNode2 m a b
-run2out basePath suffixes (inputs, run) = (gn path1, gn path2)
+node2 basePath suffixes (inputs, run) = (gn path1, gn path2)
   where
-    gn path = GitNode path inputs $ run commit >> gitReadOutput path
+    gn path = GitNode path inputs $ run commit >> sourceOutput path
     (path1, path2) = over each (\s -> fixPaths [basePath, s]) suffixes
     commit inputVers (p1, p2) = do
-         p1 $$ showCommitSink path1 inputVers
-         p2 $$ showCommitSink path2 inputVers
+        p1 $$ showCommitSink path1 inputVers
+        p2 $$ showCommitSink path2 inputVers
 
 
-run3out :: (App m, Monad m, Read a, Read b, Read c, Show a, Show b, Show c)
+node3 :: (App m, Read a, Read b, Read c, Show a, Show b, Show c)
         => FilePath
         -> Suffix3
-        -> (ClosedInputs m , Runner m (Source3 m a b c))
+        -> (ClosedInputs m, Runner m (Source3 m a b c))
         -> GitNode3 m a b c
-run3out basePath suffixes (inputs, run) = (gn path1, gn path2, gn path3)
+node3 basePath suffixes (inputs, run) = (gn path1, gn path2, gn path3)
   where
-    gn path = GitNode path inputs $ run commit >> gitReadOutput path
+    gn path = GitNode path inputs $ run commit >> sourceOutput path
     (path1, path2, path3) = over each (\s -> fixPaths [basePath, s]) suffixes
     commit inputVers (p1, p2, p3) = do
-         p1 $$ showCommitSink path1 inputVers
-         p2 $$ showCommitSink path2 inputVers
-         p3 $$ showCommitSink path3 inputVers
+        p1 $$ showCommitSink path1 inputVers
+        p2 $$ showCommitSink path2 inputVers
+        p3 $$ showCommitSink path3 inputVers
+
+
+---------------------------------------------------------
+-- | O(n^2)
+---------------------------------------------------------
 
 
 in0out1 :: (App m, Read a, Show a)
         => FilePath
         -> Suffix
-        -> Algorithm (Source m (Source m a)) m
+        -> Algorithm (() -> m (Source m a)) m
         -> GitNode m a
-in0out1 path suf  = run1out path suf  . run0in path
-in0out2 path sufs = run2out path sufs . run0in path
-in0out3 path sufs = run3out path sufs . run0in path
+in0out1 path suf  = node1 path suf  . close0 path
+in0out2 path sufs = node2 path sufs . close0 path
+in0out3 path sufs = node3 path sufs . close0 path
 
 
-in1out1 :: (App m, Read a, Read b, Show a, Show b)
+in1out1 :: (App m, Show a, Read a, Show b, Read b)
         => FilePath
         -> Suffix
         -> GitNode m a
-        -> Algorithm (Source m a -> Source m b) m
+        -> Algorithm (Source m a -> m (Source m b)) m
         -> GitNode m b
-in1out1 path suf  input  = run1out path suf  . run1in path input
-in1out2 path sufs input  = run2out path sufs . run1in path input
-in1out3 path sufs input  = run3out path sufs . run1in path input
+in1out1 path suf  input  = node1 path suf  . close1 path input
+in1out2 path sufs input  = node2 path sufs . close1 path input
+in1out3 path sufs input  = node3 path sufs . close1 path input
 
 
 in2out2 :: (App m, Read a, Read b, Read c, Read d, Show a, Show b, Show c, Show d)
         => FilePath
         -> Suffix2
         -> GitNode2 m a b
-        -> Algorithm (Source2 m a b -> Source2 m c d) m
+        -> Algorithm (Source2 m a b -> m (Source2 m c d)) m
         -> GitNode2 m c d
-in2out2 path sufs inputs = run2out path sufs . run2in path inputs
-in2out1 path suf  inputs = run1out path suf  . run2in path inputs
-in2out3 path sufs inputs = run3out path sufs . run2in path inputs
+in2out2 path sufs inputs = node2 path sufs . close2 path inputs
+in2out1 path suf  inputs = node1 path suf  . close2 path inputs
+in2out3 path sufs inputs = node3 path sufs . close2 path inputs
 
 
 in3out3 :: (App m, Read a, Read b, Read c, Read d, Read e, Read f, Show a, Show b, Show c, Show d, Show e, Show f)
         => FilePath
         -> Suffix3
         -> GitNode3 m a b c
-        -> Algorithm (Source3 m a b c -> Source3 m d e f) m
+        -> Algorithm (Source3 m a b c -> m (Source3 m d e f)) m
         -> GitNode3 m d e f
-in3out3 path sufs inputs = run3out path sufs . run3in path inputs
-in3out1 path suf  inputs = run1out path suf  . run3in path inputs
-in3out2 path sufs inputs = run2out path sufs . run3in path inputs
-
-
-gitCheckRunEffect :: App m => FilePath -> InputVersions -> m () -> m ()
-gitCheckRunEffect path inputVers effect = do
-    info "Called"
-    exists <- gitExists path
-    go <- if exists
-        then do changed <- compareVers inputVers
-                if changed
-                    then do info "Inputs changed"
-                            return True
-                    else do info "No change in inputs"
-                            return False
-        else do info "Creating"
-                return True
-    when go $ do
-        info "Running job"
-        effect
-  where
-    info s = info0 $ path ++ ": " ++ s
-    compareVers new = do
-        old <- read <$> gitMessage path
-        return $ old /= new
+in3out3 path sufs inputs = node3 path sufs . close3 path inputs
+in3out1 path suf  inputs = node1 path suf  . close3 path inputs
+in3out2 path sufs inputs = node2 path sufs . close3 path inputs
 
 
 -- | This ugly brute should probably not exist... However everything needs

@@ -72,18 +72,6 @@ script path args = Algorithm scriptConduit (show <$> sha1file path)
                     checkRc (path:args) (return ()) rc
                     BS.hGetContents hout
                 yield out
-    --
-    -- runScript input = liftIO $ do
-    --     let procArgs = (proc path args) { std_in = CreatePipe
-    --                                     , std_out = CreatePipe
-    --                                     }
-    --     (Just hin, Just hout, _, p) <- createProcess procArgs
-    --     hPutStr hin input
-    --     hClose hin
-    --     rc <- waitForProcess p
-    --     checkRc (path:args) (return ()) rc
-    --     out <- hGetContents hout
-    --     return $! out
 
 
 sha1file :: MonadIO m => FilePath -> m (Digest SHA1)

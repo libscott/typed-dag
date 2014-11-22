@@ -1,13 +1,11 @@
+{-# LANGUAGE FlexibleContexts           #-}
+
 module Control.Dag
     ( module Control.Dag.Utils
     , Algorithm (..)
-    , AlgoVersion (..)
+    , AlgoVersion
     , GitNode (..)
     , App
-    , Pair'O'Suffixes
-    , Pair'O'GitNodes
-    , Trio'O'Suffixes
-    , Trio'O'GitNodes
     , codeHash
     , execute
     , fileInput
@@ -32,6 +30,7 @@ import           Control.Applicative
 import           Control.Monad.Reader
 
 import           Control.Dag.Play
+import           Control.Dag.Prelude
 import           Control.Dag.Build
 import           Control.Dag.Index
 import           Control.Dag.Types
@@ -46,9 +45,9 @@ playNode node = do
     play idx
 
 
-runApp :: (Applicative m, MonadIO m)
-       => FilePath -> FilePath -> ReaderT Context m a -> m a
+runApp :: (Applicative m, MonadIO m, MonadBaseControl IO m)
+       => FilePath -> FilePath -> ReaderT Context (ResourceT m) a -> m a
 runApp repoPath prefix effect =
-    withGit repoPath $ do
+    withGit repoPath $ runResourceT $ do
         let context = Context prefix "root"
         runReaderT effect context

@@ -56,8 +56,6 @@ checkReplayCommit index cid = do
     let subscribers = concatMap (`getSubscribersByPath` index) filtered
     liftIO $ print $ length subscribers
     mapM_ (^.runner_) subscribers
-    return ()
-
 
 
 -- given the last commit we processed, get the next commit to process based
@@ -67,3 +65,19 @@ gitGetNextCommit (GitCommitId offset) = do
     list <- gitRevList $ offset ++ "..HEAD"
     return $ if null list then Nothing
                           else Just $ last list
+
+
+data CompareInputsResult = Changed | Same | DoesNotExist
+
+
+compareInputs :: App m => FilePath -> InputVersions -> m CompareInputsResult
+compareInputs path inputVers = do
+    exists <- gitExists path
+    if exists
+        then do changed <- compareVers inputVers
+                return $ if changed then Changed else Same
+        else return DoesNotExist
+  where
+    compareVers new = do
+        old <- read <$> gitMessage path
+        return $ old /= new
