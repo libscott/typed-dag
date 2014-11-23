@@ -2,19 +2,21 @@
 
 
 import           Data.ByteString (ByteString)
+import           Data.ByteString.Char8 as C8 (lines)
+import qualified Data.Conduit.List as CL
 import           Control.Monad.IO.Class
 import           Data.List (sort)
 import           System.Environment
 
 import Control.Dag
+import Control.Dag.Prelude
+
 
 
 
 dag :: App m => GitNode m ByteString
-dag = let inputMessages  = in0out1 "import"     "parse"                                 (fileInput "inputs/haskellirc.txt")
-      in inputMessages
-    --       (msgs, metas)  = in1out2 "categorize" ("msgs", "metas")         inputMessages       [codeHash| return . lines |]
-    --   in                   in1out1 "export"     "nIrcEvents"        msgs
+dag = let haskellirc = watchedFile "inputs/haskellirc.txt" in haskellirc
+      --in               in1out1 "outputs" "lines" haskellirc [codeHash| return . ($= CL.map C8.lines) |]
 
 
 main :: IO ()

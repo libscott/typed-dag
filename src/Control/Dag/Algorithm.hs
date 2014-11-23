@@ -26,14 +26,11 @@ import           Control.Dag.Types
 import           Control.Dag.Utils
 
 
-embed :: String -> Q Exp
-embed expr = return gotExp
-  where
-    gotExp = either error id $ parseExp expr
-
 
 toStringAlgo :: String -> Q Exp
-toStringAlgo expr = embed $ printf "Algorithm (%v) (return %v)" expr (hash expr)
+toStringAlgo expr = do
+    let str = printf "Algorithm (%v) (return \"%v\")" expr (hash expr)
+    return $ either error id $ parseExp (str::String)
 
 
 codeHash :: QuasiQuoter
@@ -48,8 +45,8 @@ codeHash = QuasiQuoter
 }
 
 
-fileInput :: App m => FilePath -> Algorithm (Source m ByteString) m
-fileInput path = Algorithm (sourceFile path) (show <$> sha1file path)
+fileInput :: App m => FilePath -> Algorithm (() -> Source m ByteString) m
+fileInput path = Algorithm (\() -> sourceFile path) (show <$> sha1file path)
 
 
 script :: App m => FilePath -> [String] -> Algorithm (ConduitM ByteString ByteString m ()) m
@@ -58,20 +55,20 @@ script path args = Algorithm scriptConduit (show <$> sha1file path)
     procArgs = (proc path args) { std_in = CreatePipe
                                 , std_out = CreatePipe
                                 }
-    -- scriptConduit :: App m => Conduit String m String
+    scriptConduit :: App m => Conduit ByteString m ByteString
     scriptConduit = do
         minput <- await
         case minput of
             Nothing    -> return ()
             Just input -> do
-                out <- liftIO $! do
+                hout <- liftIO $! do
                     (Just hin, Just hout, _, p) <- createProcess procArgs
                     BS.hPutStr hin input
                     hClose hin
                     rc <- waitForProcess p
-                    checkRc (path:args) (return ()) rc
-                    BS.hGetContents hout
-                yield out
+                    checkRc (path:args) (return hout) rc
+                sourceHandle hout
+                liftIO $ hClose hout
 
 
 sha1file :: MonadIO m => FilePath -> m (Digest SHA1)

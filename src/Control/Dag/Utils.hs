@@ -15,6 +15,7 @@ import           System.Log.Logger
 import           System.Process
 import           Text.Printf
 
+import           Control.Dag.Prelude
 import           Control.Dag.Types
 
 
@@ -42,6 +43,14 @@ doLog :: App m => Priority -> String -> m ()
 doLog priority' msg = do
     name <- view loggerName_
     liftIO $ logM name priority' msg
+
+
+debug0 :: App m => String -> m ()
+debug0 = doLog DEBUG
+
+
+debug1 :: (App m, PrintfArg a) => String -> a -> m ()
+debug1 msg a0 = debug0 $ printf msg a0
 
 
 info0 :: App m => String -> m ()
@@ -79,6 +88,12 @@ debugLogging :: IO ()
 debugLogging = setupLogging DEBUG
 
 
+trap1 :: (App m, PrintfArg a) => String -> a -> m b -> m b
+trap1 msg a f = do
+    name <- view loggerName_
+    control $ \rii -> traplogging name INFO (printf msg a) (rii f)
+
+
 ---------------------
 -- | Processes
 ---------------------
@@ -109,3 +124,23 @@ checkRc thing b rc = case rc of
 
 clMap :: MonadIO m => (a -> b) -> Conduit a m b
 clMap = CL.map
+
+
+------------------------
+-- | Files etc
+------------------------
+
+supFile :: App m => FilePath -> m ByteString
+supFile path = head <$> (sourceFile path $$ consume)
+
+
+-----------------------
+-- | Monads
+-----------------------
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM mcond effect = mcond >>= flip when effect
+
+
+unlessM :: Monad m => m Bool -> m () -> m ()
+unlessM mcond effect = mcond >>= flip unless effect

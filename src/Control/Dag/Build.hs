@@ -12,10 +12,6 @@ import           Control.Dag.Types
 import           Control.Dag.Utils
 
 
-execute :: GitNode m o -> m (InputHeader, Source m o)
-execute = gRunner_
-
-
 -- | todo: moar lenses no?
 terminate :: App m => GitNode m a -> GitNode m ()
 terminate n = n { gRunner_ = set _2 (return ()) <$> gRunner_ n }
@@ -56,6 +52,7 @@ close2 :: (App m, Read a, Read b, Show a, Show b)
           -> Algorithm (Source2 m a b -> m o) m
           -> (ClosedInputs m, Runner m o)
 close2 path (i1, i2) algo =
+    -- running is a side effect of the transposition of the types (haskellol)
     let transpose = do
         (head1, pipe1) <- gRunner_ i1
         (head2, pipe2) <- gRunner_ i2
@@ -128,7 +125,7 @@ node3 basePath suffixes (inputs, run) = (gn path1, gn path2, gn path3)
 
 
 ---------------------------------------------------------
--- | O(n^2)
+-- | O(n*m)
 ---------------------------------------------------------
 
 

@@ -22,6 +22,7 @@ module Control.Dag
     , runApp
     , script
     , terminate
+    , watchedFile
     , withGit
     ) where
 
@@ -29,19 +30,20 @@ module Control.Dag
 import           Control.Applicative
 import           Control.Monad.Reader
 
-import           Control.Dag.Play
-import           Control.Dag.Prelude
+import           Control.Dag.Algorithm
+import           Control.Dag.Backends.GitCmd
 import           Control.Dag.Build
 import           Control.Dag.Index
+import           Control.Dag.Play
+import           Control.Dag.Prelude
+import           Control.Dag.Runners
 import           Control.Dag.Types
-import           Control.Dag.Backends.GitCmd
-import           Control.Dag.Algorithm
 import           Control.Dag.Utils
 
 
 playNode :: App m => GitNode m () -> m ()
 playNode node = do
-    let idx = makeSubscriberIndex node
+    let idx = makePathSubscribers node
     play idx
 
 

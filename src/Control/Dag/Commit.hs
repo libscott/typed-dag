@@ -44,10 +44,11 @@ partPaths path i = printf "%v.%v" path i : partPaths path (i+1)
 
 sourceOutput :: (App m, Read a) => FilePath -> m (InputHeader, Source m a)
 sourceOutput path = do
-    header <- gitHeader path
+    header <- fromMaybe (e1 path) <$> gitInputHeader path
     return (header, parts)
   where
     parts = mapM_ sourceFile (partPaths path 1) =$ CL.map (read . unpack)
+    e1 p = error $ "output somehow not versioned " ++ p
 
 
 checkCreateDir :: App m => FilePath -> m ()

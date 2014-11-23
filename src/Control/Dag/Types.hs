@@ -15,8 +15,8 @@ module Control.Dag.Types
     , InputVersions (..)
     , GitNode (..)
     , GitCommitId (..)
-    , SubscriberEdge
-    , SubscriberIndex
+    , Subscriber
+    , PathSubscribers
     , pathPrefix_
     , loggerName_
     , path_
@@ -26,13 +26,10 @@ module Control.Dag.Types
     ) where
 
 
-import           Control.Applicative
-import           Control.Lens hiding (Context)
-import           Control.Monad.IO.Class
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Resource
-import           Data.Conduit
-import           Data.List (sort)
+import qualified Data.Map as Map
+
+import           Control.Dag.Prelude
 
 
 
@@ -101,11 +98,13 @@ makeFields ''Context
 
 class ( Applicative m, MonadReader Context m
       , MonadIO m, Functor m, MonadResource m
+      , MonadBaseControl IO m
       ) => App m
 
 
 instance ( Applicative m, MonadIO m, Functor m
          , MonadThrow m, MonadResource m
+         , MonadBaseControl IO m
          ) => App (ReaderT Context m)
 
 
@@ -113,11 +112,7 @@ instance ( Applicative m, MonadIO m, Functor m
 -- | Indexer
 ---------------------
 
-
--- | node -> [list of nodes that depend on it's outputs]
--- I guess this might not technically be an "edge", it's the set of edges
--- pointing to the producing node.
-type SubscriberEdge m = (GitNode m (), [GitNode m ()])
+type Subscriber m = GitNode m ()
 
 
-type SubscriberIndex m = [SubscriberEdge m]
+type PathSubscribers m = Map.Map FilePath [Subscriber m]

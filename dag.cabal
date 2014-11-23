@@ -22,11 +22,9 @@ library
                      mtl                    == 2.2.1,
                      hashable               == 1.2.2.0,
                      lens                   == 4.4.0.2,
-                     many                   == 0.1.0.2,
                      unix                   == 2.7.0.1,
                      process                == 1.2.0.0,
                      process                == 1.2.0.0,
-                     -- aeson                  == 0.8.0.2,
                      hslogger               == 1.2.6,
                      template-haskell       == 2.9.0.0,
                      haskell-src-meta       == 0.6.0.8,
@@ -35,4 +33,8 @@ library
                      bytestring             == 0.10.4.0,
                      cryptohash             == 0.11.6,
                      cryptohash-conduit     == 0.1.1,
-                     resourcet              == 1.1.2.3
+                     resourcet              == 1.1.2.3,
+                     missingh               == 1.3.0.1,
+                     attoparsec             == 0.12.1.2,
+                     monad-control          == 0.3.3.0,
+                     either                 == 4.3.2

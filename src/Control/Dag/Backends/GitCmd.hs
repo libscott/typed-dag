@@ -10,7 +10,6 @@ module Control.Dag.Backends.GitCmd where
 
 import           System.IO
 import           System.Posix.Directory
-import           System.Posix.Files
 import           System.Process
 
 import           Control.Dag.Prelude
@@ -18,8 +17,7 @@ import           Control.Dag.Types
 import           Control.Dag.Utils
 
 
-gitExists :: App m => FilePath -> m Bool
-gitExists = liftIO . fileExist
+data GitException = FileNotVersioned deriving (Show, Eq, Enum)
 
 
 gitCommit :: App m => String -> [FilePath] -> m ()
@@ -28,22 +26,19 @@ gitCommit msg paths = mapM_ (\path -> gitExec ["add", path]) paths
                    >> return ()
 
 
-gitHeader :: App m => FilePath -> m InputHeader
-gitHeader path = InputHeader path <$> gitSha1 path
-
-
 gitMessage :: App m => String -> m String
 gitMessage key = let args = ["log", "-n 1", "--pretty=format:%B", key]
                  in gitExec args >>= liftIO . hGetContents
 
 
-gitInputHeader :: App m => FilePath -> m InputHeader
-gitInputHeader path = InputHeader path <$> gitSha1 path
+gitInputHeader :: App m => FilePath -> m (Maybe InputHeader)
+gitInputHeader path = fmap (InputHeader path) <$> gitCommitId path
 
 
-gitSha1 :: App m => FilePath -> m GitCommitId
-gitSha1 path = let args = ["log", "-n 1", "--pretty=format:%H", path] in
-    GitCommitId <$> (gitExec args >>= liftIO . hGetLine)
+gitCommitId :: App m => FilePath -> m (Maybe GitCommitId)
+gitCommitId path = do
+    let args = ["log", "-n 1", "--pretty=format:%H", path]
+    gitExec args >>= liftIO . hMaybe (fmap GitCommitId . hGetLine)
 
 
 gitRevList :: App m => String -> m [GitCommitId]
@@ -60,17 +55,25 @@ gitFilesAffected (GitCommitId sha) = do
 
 
 gitExec :: App m => [String] -> m Handle
-gitExec args = liftIO $ do
-    liftIO $ print args
-    let procArgs = (proc "git" args) { std_out = CreatePipe, std_err = Inherit }
-    (_, Just h, _, p) <- createProcess procArgs
-    rc <- waitForProcess p
-    return $ checkRc ("git":args) h rc
+gitExec args = do
+    debug1 "GIT %v" (show args)
+    liftIO $ do
+        let procArgs = (proc "git" args) { std_out = CreatePipe, std_err = Inherit }
+        (_, Just h, _, p) <- createProcess procArgs
+        rc <- waitForProcess p
+        return $ checkRc ("git":args) h rc
 
 
 withGit :: (Applicative m, MonadIO m) => FilePath -> m a -> m a
 withGit path effect = do
     wd <- liftIO $ getWorkingDirectory
                  <* changeWorkingDirectory path
-                 <* system' "[[ -d .git ]]" -- check we're at GIT directory base dir
+                 -- check we're at GIT directory base dir
+                 <* system' "[[ -d .git ]]"
     effect <* liftIO (changeWorkingDirectory wd)
+
+
+hMaybe :: (Handle -> IO a) -> Handle -> IO (Maybe a)
+hMaybe action h = do
+    eof <- hIsEOF h
+    if eof then return Nothing else Just <$> action h

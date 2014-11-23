@@ -11,6 +11,7 @@ import           Control.Dag.Types
 import           Control.Dag.Backends.GitCmd
 import           Control.Dag.Index
 import           Control.Dag.Utils
+import           Control.Dag.Prelude
 
 
 
@@ -31,8 +32,13 @@ type Player = IO
 -- .output files.
 --
 
+-- replay strategy:
+-- iterate commits. Check files of each commit. If any file ends with .output,
+-- check the subscriber map for nodes that might be subscribing and run them.
+-- thats it.
 
-play :: App m => SubscriberIndex m -> m ()
+
+play :: App m => PathSubscribers m -> m ()
 play index = do
     commitId <- GitCommitId <$> liftIO (withFile "OFFSET" ReadMode hGetLine)
     mnext <- gitGetNextCommit $! commitId
@@ -45,7 +51,7 @@ play index = do
             play index
 
 
-checkReplayCommit :: App m => SubscriberIndex m -> GitCommitId -> m ()
+checkReplayCommit :: App m => PathSubscribers m -> GitCommitId -> m ()
 checkReplayCommit index cid = do
     affected <- gitFilesAffected cid
     let present = [drop 1 l | l <- affected, head l /= 'D']
@@ -53,7 +59,7 @@ checkReplayCommit index cid = do
         filtered = filter (isSuffixOf ".output") stripped
     -- for each output of this job, find what depends on that output and
     -- trigger it.
-    let subscribers = concatMap (`getSubscribersByPath` index) filtered
+    let subscribers = concatMap (`getPathSubscribers` index) filtered
     liftIO $ print $ length subscribers
     mapM_ (^.runner_) subscribers
 
@@ -72,11 +78,11 @@ data CompareInputsResult = Changed | Same | DoesNotExist
 
 compareInputs :: App m => FilePath -> InputVersions -> m CompareInputsResult
 compareInputs path inputVers = do
-    exists <- gitExists path
-    if exists
-        then do changed <- compareVers inputVers
-                return $ if changed then Changed else Same
-        else return DoesNotExist
+    exist <- liftIO $ fileExist path
+    if exist then do changed <- compareVers inputVers
+                     return $ if changed then Changed else Same
+             else return DoesNotExist
+
   where
     compareVers new = do
         old <- read <$> gitMessage path

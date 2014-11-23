@@ -1,6 +1,7 @@
 module Control.Dag.Runners where
 
 
+import Control.Dag.Backends.GitCmd
 import Control.Dag.Prelude
 import Control.Dag.Play
 import Control.Dag.Types
@@ -17,6 +18,10 @@ type Source3 m a b c    = (Source m a, Source m b, Source m c)
 ------------------------------------------------------------------
 -- | Runner
 ------------------------------------------------------------------
+
+
+execute :: App m => GitNode m o -> m (InputHeader, Source m o)
+execute node = gRunner_ node >>= (return $!)
 
 
 -- | Get outputs from upstream, compile and compare version
@@ -40,3 +45,17 @@ runner path getInputs (Algorithm f getAlgoVer) commit = do
         DoesNotExist -> do
             info1 "%v does not exist, running" path
             effect
+
+
+-- a watched file is a special GitNode that watches a file for changes.
+-- the way it triggers other nodes is via the returned InputHeader, which
+-- contains the git commit hash of the file itself.
+watchedFile :: App m => FilePath -> GitNode m ByteString
+watchedFile path = GitNode path [] $
+    -- All we need to do here is return the git commit id of the
+    -- watched file, and a sourceFile for the content and we are done, nigga
+    trap1 "watchedFile %v" path $ do
+        mheader <- gitInputHeader path
+        return $ maybe (e1 path) (\h -> (h, sourceFile path)) mheader
+  where
+    e1 p = error $ "watched file not versioned " ++ p
