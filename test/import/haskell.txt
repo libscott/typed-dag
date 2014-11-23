@@ -1,0 +1,36 @@
+11:10 -!- ddellacosta [~ddellacos@softbank126065198089.bbtec.net] has joined #haskell
+11:10 -!- hcore is now known as daishi
+11:11 -!- glguy [~glguy@unaffiliated/glguy] has joined #haskell
+11:11 -!- akuhlens [~akuhlens@2601:d:a780:11d:8161:1947:332c:5c3f] has joined #haskell
+11:11 -!- mrsElectron [~lolwhat@gateway/tor-sasl/lolwhat] has quit [Quit: mrsElectron]
+11:11 -!- dpratt711 [~dpratt71@pool-72-65-108-211.ptldme.east.myfairpoint.net] has joined #haskell
+11:12 -!- torpet_ [~torpet@84-115-42-228.dynamic.surfer.at] has quit [Ping timeout: 256 seconds]
+11:12 -!- jfischoff [~jfischoff@c-69-181-143-84.hsd1.ca.comcast.net] has quit [Quit: jfischoff]
+11:12 -!- mreh [~mreh@94.11.31.241] has joined #haskell
+11:12 -!- samrat [~samrat@123.236.183.195] has quit [Ping timeout: 250 seconds]
+11:12 -!- Flounder3345 [Flounder@ip98-179-180-115.ri.ri.cox.net] has joined #haskell
+11:13 -!- crazydiamond [~crazydiam@dynamic-178-141-71-96.kirov.comstar-r.ru] has quit [Ping timeout: 272 seconds]
+11:14 -!- jfischoff [~jfischoff@c-69-181-143-84.hsd1.ca.comcast.net] has joined #haskell
+11:14 -!- samrat [~samrat@123.236.183.195] has joined #haskell
+11:14 -!- merijn [~merijn@173-13-156-125-sfba.hfc.comcastbusiness.net] has quit [Ping timeout: 240 seconds]
+11:14 -!- Azel [~Thunderbi@vig91-h03-89-84-5-35.dsl.sta.abo.bbox.fr] has joined #haskell
+11:15 -!- dgpratt_ [~dpratt71@pool-72-65-98-5.ptldme.east.myfairpoint.net] has quit [Ping timeout: 255 seconds]
+11:15 -!- fraytormenta34 [~fraytorme@5.251.198.213] has quit [Read error: Connection reset by peer]
+11:17 -!- Wuzzy [~Wuzzy@p549FB51C.dip0.t-ipconnect.de] has joined #haskell
+11:17 -!- systemfault [~rcyr@oftn/member/systemfault] has joined #haskell
+11:18 -!- hamid [~nithp@unaffiliated/hamid] has joined #haskell
+11:19 -!- kranius [~kranius@173.250.93.79.rev.sfr.net] has quit [Ping timeout: 244 seconds]
+11:20 -!- whaletechno [~whaletech@unaffiliated/whaletechno] has joined #haskell
+11:20 -!- seveg [~seveg@chello089173231210.chello.sk] has joined #haskell
+11:21 -!- j201 [~j201@CPE7cb21bcc3740-CM7cb21bcc373d.cpe.net.cable.rogers.com] has joined #haskell
+11:21 -!- j201 [~j201@CPE7cb21bcc3740-CM7cb21bcc373d.cpe.net.cable.rogers.com] has quit [Changing host]
+11:21 -!- j201 [~j201@unaffiliated/j201] has joined #haskell
+11:21 -!- funfunctor [~functorfu@c211-30-236-14.wavrl3.nsw.optusnet.com.au] has quit [Ping timeout: 245 seconds]
+11:21 -!- tommah [~tommah@67-43-243-183.fidnet.com] has joined #haskell
+11:22 -!- rshetty [~rshetty@103.227.99.108] has joined #haskell
+11:22 -!- sbahra [~sbahra@74.72.45.174] has joined #haskell
+11:23 -!- bitonic [~bitonic@ppp-227-186.27-151.libero.it] has quit [Ping timeout: 240 seconds]
+11:23 -!- raichoo [~raichoo@46.115.170.155] has quit [Ping timeout: 240 seconds]
+11:24 -!- ulfdoz [~mary@2.164.114.0] has joined #haskell
+11:24 -!- y [~exio4@unaffiliated/hacker] has quit [Quit: WeeChat 1.0.1]
+11:24 -!- arj [~arj@c166180.informatik.uni-freiburg.de] has joined #haskell
