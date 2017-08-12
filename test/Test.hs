@@ -13,7 +13,8 @@ import Control.Dag.Prelude
 
 
 
--- a 2 node graph
+-- A 2 node graph
+-- Like Conduit but it's a DAG
 
 dag :: App m => GitNode m ByteString
 dag = let haskellirc = watchedFile "inputs/haskellirc.txt" in haskellirc
