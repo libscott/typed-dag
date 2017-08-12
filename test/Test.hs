@@ -13,10 +13,11 @@ import Control.Dag.Prelude
 
 
 
+-- a 2 node graph
 
 dag :: App m => GitNode m ByteString
 dag = let haskellirc = watchedFile "inputs/haskellirc.txt" in haskellirc
-      --in               in1out1 "outputs" "lines" haskellirc [codeHash| return . ($= CL.map C8.lines) |]
+      in               in1out1 "outputs" "lines" haskellirc [codeHash| return . ($= CL.map C8.lines) |]
 
 
 main :: IO ()
